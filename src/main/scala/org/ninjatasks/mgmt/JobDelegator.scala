@@ -1,54 +1,61 @@
 package org.ninjatasks.mgmt
 
-import org.ninjatasks.utils.ManagementConsts.WORKER_MGR_ROLE
 import akka.actor._
 import scala.collection.mutable
-import akka.cluster.{MemberStatus, Member, ClusterEvent, Cluster}
-import akka.actor.RootActorPath
-import akka.cluster.ClusterEvent.CurrentClusterState
-import akka.cluster.ClusterEvent.MemberUp
-import akka.cluster.ClusterEvent.MemberExited
+import org.ninjatasks.work.Job
+import org.ninjatasks.cluster.TopicAwareActor
+import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME}
+import akka.contrib.pattern.DistributedPubSubMediator.Publish
 
 /**
  * Delegates work to remote worker managers
  * Created by Gilad Ber on 4/16/14.
  */
-class JobDelegator extends Actor with ActorLogging
+class JobDelegator extends TopicAwareActor(MGMT_TOPIC_NAME)
 {
-	val targetManagers = new mutable.HashSet[ActorSelection]
-	val cluster = Cluster(context.system)
+	private val jobQueue = new mutable.PriorityQueue[Job[_, _]]()
+	private val jobRequestQueue = new mutable.Queue[ActorRef]()
 
-	override def preStart() = cluster.subscribe(self, ClusterEvent.InitialStateAsEvents,
-																							classOf[MemberUp], classOf[MemberExited])
-
-	override def postStop() = cluster.unsubscribe(self)
+	override def preStart() =
+	{
+		super.preStart()
+		mediator ! Publish(WORK_TOPIC_NAME, ManagerStarted)
+	}
 
 	override def receive =
 	{
+		super.receive orElse myReceive
+	}
+
+	private[this] def myReceive: Actor.Receive =
+	{
+		case AggregateJobMessage(jobs) =>
+			jobQueue ++= jobs
+			if (!jobRequestQueue.isEmpty)
+			{
+				jobRequestQueue.dequeue ! JobMessage(jobQueue.dequeue())
+			}
+
 		case JobMessage(job) =>
-			targetManagers foreach (_ ! job)
+			jobQueue += job
+			if (!jobRequestQueue.isEmpty)
+			{
+				jobRequestQueue.dequeue() ! JobMessage(jobQueue.dequeue())
+			}
 
-		case MemberUp(m) => targetManagers add member2ActorSelection(m)
+		case JobRequest =>
+			log.info("Received job request from {}", sender())
+			jobRequestQueue += sender
+			if (!jobQueue.isEmpty)
+			{
+				jobRequestQueue.dequeue ! JobMessage(jobQueue.dequeue())
+			}
 
-		case MemberExited(m) => targetManagers remove member2ActorSelection(m)
+		case ResultMessage(result, id) =>
+			println(result)
 
-		case state: CurrentClusterState =>
-			state.members filter isWorkerManager map member2ActorSelection foreach targetManagers.add
-
-		case _ =>
-			throw new IllegalArgumentException("Unknown message type receieved!")
+		case msg =>
+			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)
 	}
 
-
-	def isWorkerManager: (Member) => Boolean =
-	{
-		m => m.status == MemberStatus.Up && m.hasRole(WORKER_MGR_ROLE)
-	}
-
-	final def member2ActorSelection(member: Member) =
-	{
-		val result = context.actorSelection(RootActorPath(member.address) / "user" / "ninja")
-		println("result of conversion is: " + result)
-		result
-	}
 }

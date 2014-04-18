@@ -1,11 +1,11 @@
 package org.ninjatasks.main
 
 import akka.actor.Props
-import org.ninjatasks.mgmt.WorkerManager
 import org.ninjatasks.utils.ManagementConsts
+import org.ninjatasks.exec.WorkerManager
 
 /**
- * Main entry point
+ * Main entry point for worker manager
  * Created by Gilad Ber on 4/15/14.
  */
 object NinjaAppWorker
