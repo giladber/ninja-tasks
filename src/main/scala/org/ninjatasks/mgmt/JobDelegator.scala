@@ -16,10 +16,9 @@ class JobDelegator extends TopicAwareActor(MGMT_TOPIC_NAME)
 	private val jobQueue = new mutable.PriorityQueue[Job[_, _]]()
 	private val jobRequestQueue = new mutable.Queue[ActorRef]()
 
-	override def preStart() =
+	override def postSubscribe() =
 	{
-		super.preStart()
-		mediator ! Publish(WORK_TOPIC_NAME, ManagerStarted)
+		log.info("Published message: {} to topic: {}", ManagerStarted, WORK_TOPIC_NAME)
 	}
 
 	override def receive =
@@ -37,6 +36,7 @@ class JobDelegator extends TopicAwareActor(MGMT_TOPIC_NAME)
 			}
 
 		case JobMessage(job) =>
+			mediator ! Publish(WORK_TOPIC_NAME, ManagerStarted)
 			jobQueue += job
 			if (!jobRequestQueue.isEmpty)
 			{

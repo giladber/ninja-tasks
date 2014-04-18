@@ -70,7 +70,8 @@ class WorkerManager extends TopicAwareActor(WORK_TOPIC_NAME)
 		case WorkDataMessage(wId, data) => workData.put(wId, data)
 
 		case ManagerStarted =>
-			if (requestQueue.isEmpty)
+			log.info("Received ManagerStarted msg from {}", sender())
+			if (!requestQueue.isEmpty)
 			{
 				sender() ! JobRequest
 			}
