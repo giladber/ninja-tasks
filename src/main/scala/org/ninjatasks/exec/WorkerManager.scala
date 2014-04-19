@@ -6,7 +6,6 @@ import org.ninjatasks.work.Job
 import org.ninjatasks.mgmt._
 import org.ninjatasks.cluster.TopicAwareActor
 import org.ninjatasks.mgmt.JobMessage
-import akka.contrib.pattern.DistributedPubSubMediator.Publish
 import org.ninjatasks.mgmt.ResultMessage
 import org.ninjatasks.mgmt.WorkDataMessage
 
@@ -20,7 +19,7 @@ object WorkerManager
 }
 
 
-import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME}
+import org.ninjatasks.utils.ManagementConsts.{WORK_TOPIC_NAME, MGMT_TOPIC_NAME}
 import WorkerManager._
 
 /**
@@ -28,7 +27,7 @@ import WorkerManager._
  * There should only be one WorkerManager per machine.
  * Created by Gilad Ber on 4/15/14.
  */
-class WorkerManager extends TopicAwareActor(WORK_TOPIC_NAME)
+class WorkerManager extends TopicAwareActor(subscriptionTopic = WORK_TOPIC_NAME, registrationTopic = MGMT_TOPIC_NAME)
 {
 	private[this] val workData = new mutable.HashMap[Long, Any]()
 	private[this] val requestQueue = new mutable.Queue[ActorRef]()
@@ -45,6 +44,7 @@ class WorkerManager extends TopicAwareActor(WORK_TOPIC_NAME)
 		super.receive orElse myReceive
 	}
 
+	override def postRegister() = publish(JobRequest)
 
 	private[this] def myReceive: Actor.Receive =
 	{
@@ -61,20 +61,13 @@ class WorkerManager extends TopicAwareActor(WORK_TOPIC_NAME)
 			{
 				requestQueue.dequeue ! jobQueue.dequeue
 			}
-			mediator ! Publish(MGMT_TOPIC_NAME, res)
+			publish(res)
 
 		case JobRequest =>
 			requestQueue += sender
-			mediator ! Publish(MGMT_TOPIC_NAME, JobRequest)
+			publish(JobRequest)
 
 		case WorkDataMessage(wId, data) => workData.put(wId, data)
-
-		case ManagerStarted =>
-			log.info("Received ManagerStarted msg from {}", sender())
-			if (!requestQueue.isEmpty)
-			{
-				sender() ! JobRequest
-			}
 
 		case msg =>
 			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)

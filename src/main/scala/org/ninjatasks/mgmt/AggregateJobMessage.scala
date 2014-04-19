@@ -22,4 +22,6 @@ private[ninjatasks] case class WorkDataMessage[T](workId: Long, data: T) extends
 
 private[ninjatasks] case object JobRequest extends ManagementProtocolMessage
 
-private[ninjatasks] case object ManagerStarted extends ManagementProtocolMessage
+private[ninjatasks] case object ComponentStarted extends ManagementProtocolMessage
+
+private[ninjatasks] case object ComponentStartedAck extends ManagementProtocolMessage

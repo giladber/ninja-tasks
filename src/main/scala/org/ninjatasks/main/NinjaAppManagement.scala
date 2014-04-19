@@ -1,8 +1,7 @@
 package org.ninjatasks.main
 
-import org.ninjatasks.mgmt.{JobMessage, JobDelegator}
+import org.ninjatasks.mgmt.JobDelegator
 import akka.actor.Props
-import org.ninjatasks.work.SleepJob
 
 /**
  *
@@ -15,7 +14,7 @@ object NinjaAppManagement
 		import org.ninjatasks.utils.ManagementConsts.{system, JOB_DELEGATOR_ACTOR_NAME}
 		val actor = system.actorOf(Props[JobDelegator], JOB_DELEGATOR_ACTOR_NAME)
 		Thread.sleep(5000)
-		actor ! JobMessage(SleepJob(5000, 1, 5, 1010100))
-		println("Sent sleepjob msg")
+		//		actor ! JobMessage(SleepJob(5000, 1, 5, 1010100))
+		//		println("Sent sleepjob msg")
 	}
 }
