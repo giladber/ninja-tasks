@@ -6,7 +6,7 @@ import org.ninjatasks.work.Job
 import org.ninjatasks.mgmt._
 import org.ninjatasks.cluster.TopicAwareActor
 import org.ninjatasks.mgmt.JobMessage
-import org.ninjatasks.mgmt.ResultMessage
+import org.ninjatasks.mgmt.JobSuccess
 import org.ninjatasks.mgmt.WorkDataMessage
 
 object WorkerManager
@@ -36,7 +36,7 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	override def preStart() =
 	{
 		super.preStart()
-		(1 to WORKER_NUM) map (s => context.actorOf(Props[Worker], s"worker-$i")) foreach requestQueue.+=
+		(1 to WORKER_NUM) map (s => context.actorOf(Props[Worker], s"worker-$s")) foreach requestQueue.+=
 	}
 
 	override def receive =
@@ -55,7 +55,7 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 				requestQueue.dequeue ! jobQueue.dequeue
 			}
 
-		case res: ResultMessage[_] =>
+		case res: JobSuccess[_] =>
 			requestQueue += sender
 			if (!jobQueue.isEmpty)
 			{

@@ -2,7 +2,7 @@ package org.ninjatasks.exec
 
 import org.ninjatasks.work.Job
 import akka.actor.{Actor, ActorLogging}
-import org.ninjatasks.mgmt.ResultMessage
+import org.ninjatasks.mgmt.JobSuccess
 
 /**
  *
@@ -19,8 +19,8 @@ class Worker extends Actor with ActorLogging
 	override def receive =
 	{
 		case job: Job[_, _] =>
-			log.info(self + "is beginning execution of job id " + job.id)
-			sender ! ResultMessage(job.execute(), job.id)
+			log.info("{} is beginning execution of job id {}", self, job.id)
+			sender ! JobSuccess(job.execute(), job.id)
 		case msg =>
 			throw new IllegalArgumentException("Invalid input for worker: " + msg + "from sender " + sender)
 	}

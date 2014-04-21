@@ -18,9 +18,9 @@ trait JobCreator[T, D]
 	def remaining: Long
 }
 
-abstract class AbstractJobCreator[T, D](work: Work)
+abstract class AbstractJobCreator[T, D](work: Work[T, D]) extends JobCreator[T, D]
 {
-	protected val produced = work.jobNum
+	protected var produced = work.jobNum
 
 	override def remaining = work.jobNum - produced
 
@@ -29,7 +29,7 @@ abstract class AbstractJobCreator[T, D](work: Work)
 
 trait JobSetIterator[T, D] extends Iterator[Set[Job[T, D]]]
 {
-	private val producer: JobCreator[T, D]
+	protected val producer: JobCreator[T, D]
 
 	override def hasNext = producer.remaining > 0
 

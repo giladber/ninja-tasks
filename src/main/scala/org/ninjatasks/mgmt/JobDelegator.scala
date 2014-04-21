@@ -56,7 +56,7 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 				jobRequestQueue.dequeue ! JobMessage(jobQueue.dequeue())
 			}
 
-		case ResultMessage(result, id) =>
+		case JobSuccess(result, id) =>
 			println(result)
 
 		case msg =>
