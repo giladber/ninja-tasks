@@ -13,15 +13,13 @@ import org.ninjatasks.utils.ManagementConsts.WORK_TOPIC_NAME
  */
 class WorkManager extends Actor with ActorLogging
 {
-	val mediator = DistributedPubSubExtension(context.system).mediator
-	private val pendingWork = new mutable.HashSet[Work[_, _]]()
+	private val pendingWork = new mutable.HashMap[Long, Work[_, _]]()
 
 	override def receive =
 	{
 		case work: Work[_, _] =>
 		{
-			pendingWork add work
-			mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(work.id, work.data))
+			pendingWork put (work.id, work)
 		}
 
 		case WorkDelegationMessage(to) =>

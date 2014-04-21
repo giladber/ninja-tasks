@@ -14,7 +14,7 @@ import scala.concurrent.duration._
  * Manages relative nodes in the cluster
  * Created by Gilad Ber on 4/18/14.
  */
-abstract class TopicAwareActor(subscriptionTopic: String, registrationTopic: String) extends Actor with ActorLogging
+abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extends Actor with ActorLogging
 {
 	protected val mediator: ActorRef = DistributedPubSubExtension(context.system).mediator
 	protected var replyReceived = false
@@ -23,11 +23,11 @@ abstract class TopicAwareActor(subscriptionTopic: String, registrationTopic: Str
 
 	private[this] final def scheduler = context.system.scheduler
 
-	final def publish(message: Any) = mediator ! Publish(registrationTopic, message)
+	final def publish(message: Any) = mediator ! Publish(targetTopic, message)
 
-	override def preStart() = mediator ! Subscribe(subscriptionTopic, self)
+	override def preStart() = mediator ! Subscribe(receiveTopic, self)
 
-	override def postStop() = mediator ! Unsubscribe(subscriptionTopic, self)
+	override def postStop() = mediator ! Unsubscribe(receiveTopic, self)
 
 	def postSubscribe(): Unit =
 	{

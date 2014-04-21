@@ -27,7 +27,7 @@ import WorkerManager._
  * There should only be one WorkerManager per machine.
  * Created by Gilad Ber on 4/15/14.
  */
-class WorkerManager extends TopicAwareActor(subscriptionTopic = WORK_TOPIC_NAME, registrationTopic = MGMT_TOPIC_NAME)
+class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targetTopic = MGMT_TOPIC_NAME)
 {
 	private[this] val workData = new mutable.HashMap[Long, Any]()
 	private[this] val requestQueue = new mutable.Queue[ActorRef]()
@@ -36,7 +36,7 @@ class WorkerManager extends TopicAwareActor(subscriptionTopic = WORK_TOPIC_NAME,
 	override def preStart() =
 	{
 		super.preStart()
-		(1 to WORKER_NUM) map (s => context.actorOf(Props[Worker], "worker" + s)) foreach requestQueue.+=
+		(1 to WORKER_NUM) map (s => context.actorOf(Props[Worker], s"worker-$i")) foreach requestQueue.+=
 	}
 
 	override def receive =
