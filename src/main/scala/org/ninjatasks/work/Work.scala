@@ -7,11 +7,13 @@ package org.ninjatasks.work
  */
 trait Work[T, D] extends Iterable[Set[ManagedJob[T, D]]]
 {
-	override def iterator: Iterator[Set[ManagedJob[T, D]]]
+	override def iterator: JobSetIterator[T, D]
 
 	def id: Long
 
 	def data: D
+
+	def priority: Int
 
 	def jobNum: Long
 }

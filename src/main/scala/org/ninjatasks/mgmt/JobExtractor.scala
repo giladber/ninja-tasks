@@ -18,6 +18,7 @@ class JobExtractor(val workSource: ActorRef, val delegator: ActorRef) extends Ac
 	override def preStart() =
 		cancelOption foreach (c => c.cancel())
 
+	//TODO still need to wrap this cancellable in the cancelOption and to cancel/renew it upon reset etc.
 	val cancellable = scheduler.schedule(initialDelay = 0 seconds, interval = 1 second)
 	{
 		val f = ask(delegator, JobCapacityRequest)(timeout = 500 millis)

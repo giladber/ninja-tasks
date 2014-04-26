@@ -23,7 +23,7 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 	private val jobQueue = new mutable.PriorityQueue[ManagedJob[_, _]]()
 	private val jobRequestQueue = new mutable.Queue[ActorRef]()
 
-	def availableTaskCapacity = JOB_QUEUE_MAX_LENGTH - jobQueue.size
+	private[this] def availableTaskCapacity = JOB_QUEUE_MAX_LENGTH - jobQueue.size
 
 	override def receive =
 	{
@@ -58,6 +58,8 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 
 		case JobSuccess(result, id) =>
 			println("Received result: " + result)
+
+		case JobCapacityRequest => sender() ! JobCapacity(availableTaskCapacity)
 
 		case msg =>
 			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)

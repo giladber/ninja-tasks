@@ -8,6 +8,8 @@ package org.ninjatasks.work
  */
 trait JobCreator[T, D]
 {
+	val work: Work[T, D]
+
 	/**
 	 * Returns a set of un-traversed jobs consisting of at most amount jobs
 	 * @param amount maximum number of jobs to return
@@ -15,10 +17,14 @@ trait JobCreator[T, D]
 	 */
 	def create(amount: Long): Set[ManagedJob[T, D]]
 
+	/**
+	 * Returns the remaining number of jobs to be created
+	 * @return remaining number of jobs that can possibly be created
+	 */
 	def remaining: Long
 }
 
-abstract class AbstractJobCreator[T, D](work: Work[T, D]) extends JobCreator[T, D]
+abstract class AbstractJobCreator[T, D](val work: Work[T, D]) extends JobCreator[T, D]
 {
 	protected var produced = work.jobNum
 
@@ -27,6 +33,12 @@ abstract class AbstractJobCreator[T, D](work: Work[T, D]) extends JobCreator[T, 
 	protected def updateProduced(created: Long) = produced += created
 }
 
+/**
+ * Batch-style iterator for lazily creating job batches from a work object.
+ * This trait should be implemented by the client.
+ * @tparam T Type returned by the work's underlying jobs
+ * @tparam D Type of the work's data object
+ */
 trait JobSetIterator[T, D] extends Iterator[Set[ManagedJob[T, D]]]
 {
 	protected val producer: JobCreator[T, D]

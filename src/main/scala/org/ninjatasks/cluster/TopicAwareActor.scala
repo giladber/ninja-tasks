@@ -1,35 +1,26 @@
 package org.ninjatasks.cluster
 
-import akka.actor.{ActorRef, ActorLogging, Actor}
-import akka.contrib.pattern.DistributedPubSubExtension
-import akka.contrib.pattern.DistributedPubSubMediator._
 import org.ninjatasks.mgmt.{ComponentStartedAck, ComponentStarted}
-import akka.contrib.pattern.DistributedPubSubMediator.Subscribe
-import akka.contrib.pattern.DistributedPubSubMediator.Unsubscribe
-import akka.contrib.pattern.DistributedPubSubMediator.UnsubscribeAck
-import akka.contrib.pattern.DistributedPubSubMediator.SubscribeAck
+import akka.contrib.pattern.DistributedPubSubMediator.Publish
 import scala.concurrent.duration._
 
 /**
  * Manages relative nodes in the cluster
  * Created by Gilad Ber on 4/18/14.
  */
-abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extends Actor with ActorLogging
+abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extends TopicReceivingActor(receiveTopic)
 {
-	protected val mediator: ActorRef = DistributedPubSubExtension(context.system).mediator
+	//TODO should lifecycle methods be called async? if so, change docs to reflect that
+
 	protected var replyReceived = false
 
 	import context.dispatcher
 
 	private[this] final def scheduler = context.system.scheduler
 
-	final def publish(message: Any) = mediator ! Publish(targetTopic, message)
+	protected final def publish(message: Any) = mediator ! Publish(targetTopic, message)
 
-	override def preStart() = mediator ! Subscribe(receiveTopic, self)
-
-	override def postStop() = mediator ! Unsubscribe(receiveTopic, self)
-
-	def postSubscribe(): Unit =
+	override def postSubscribe(): Unit =
 	{
 		scheduler.scheduleOnce(5 seconds)
 		{
@@ -41,27 +32,31 @@ abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extend
 		}
 	}
 
+	/**
+	 * Method invoked after registration is successful to target topic.
+	 * Empty default implementation.
+	 */
 	def postRegister(): Unit =
 	{}
 
 	override def receive =
 	{
-		case SubscribeAck(s) =>
-			log.info("Actor {} subscribed to topic {}", s.ref, s.topic)
-			postSubscribe()
+		super.receive orElse myReceive
+	}
 
-		case UnsubscribeAck(s) => log.info("Actor {} unsubscribed from topic {}", s.ref, s.topic)
-
+	private[this] def myReceive: Receive =
+	{
 		case ComponentStarted =>
-			if (sender() != self)
+			val s = sender()
+			if (s != self)
 			{
-				sender() ! ComponentStartedAck
+				s ! ComponentStartedAck
 			}
 			else if (!replyReceived)
 			{
 				scheduler.scheduleOnce(2 seconds)
 				{
-					println("Published ack request from " + self)
+					log.debug("Published ack request from {}", self)
 					publish(ComponentStarted)
 				}
 				scheduler.scheduleOnce(3 seconds)
@@ -71,7 +66,7 @@ abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extend
 			}
 
 		case ComponentStartedAck =>
-			println("Received ack reply from " + sender())
+			log.debug("Received ack reply from {}", sender())
 			replyReceived = true
 			postRegister()
 	}
