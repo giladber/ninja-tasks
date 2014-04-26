@@ -13,7 +13,7 @@ trait JobCreator[T, D]
 	 * @param amount maximum number of jobs to return
 	 * @return set of un-traversed jobs
 	 */
-	def create(amount: Long): Set[Job[T, D]]
+	def create(amount: Long): Set[ManagedJob[T, D]]
 
 	def remaining: Long
 }
@@ -27,7 +27,7 @@ abstract class AbstractJobCreator[T, D](work: Work[T, D]) extends JobCreator[T, 
 	protected def updateProduced(created: Long) = produced += created
 }
 
-trait JobSetIterator[T, D] extends Iterator[Set[Job[T, D]]]
+trait JobSetIterator[T, D] extends Iterator[Set[ManagedJob[T, D]]]
 {
 	protected val producer: JobCreator[T, D]
 

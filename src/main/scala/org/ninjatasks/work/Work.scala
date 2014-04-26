@@ -5,9 +5,9 @@ package org.ninjatasks.work
  *
  * Created by Gilad Ber on 4/15/14.
  */
-trait Work[T, D] extends Iterable[Set[Job[T, D]]]
+trait Work[T, D] extends Iterable[Set[ManagedJob[T, D]]]
 {
-	override def iterator: Iterator[Set[Job[T, D]]]
+	override def iterator: Iterator[Set[ManagedJob[T, D]]]
 
 	def id: Long
 

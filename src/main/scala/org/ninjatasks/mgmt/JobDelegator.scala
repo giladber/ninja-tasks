@@ -2,7 +2,7 @@ package org.ninjatasks.mgmt
 
 import akka.actor._
 import scala.collection.mutable
-import org.ninjatasks.work.{SleepJob, Job}
+import org.ninjatasks.work.{SleepJob, ManagedJob}
 import org.ninjatasks.cluster.TopicAwareActor
 import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME}
 
@@ -20,7 +20,7 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 
 	import JobDelegator._
 
-	private val jobQueue = new mutable.PriorityQueue[Job[_, _]]()
+	private val jobQueue = new mutable.PriorityQueue[ManagedJob[_, _]]()
 	private val jobRequestQueue = new mutable.Queue[ActorRef]()
 
 	def availableTaskCapacity = JOB_QUEUE_MAX_LENGTH - jobQueue.size
@@ -30,7 +30,7 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 		super.receive orElse myReceive
 	}
 
-	override def postRegister() = publish(JobMessage(SleepJob(5000, 1, 5, 1010100)))
+	override def postRegister() = jobRequestQueue foreach( _ => publish(JobMessage(SleepJob(5000, 1, 5, 1010100))) )
 
 	private[this] def myReceive: Actor.Receive =
 	{
@@ -57,7 +57,7 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 			}
 
 		case JobSuccess(result, id) =>
-			println(result)
+			println("Received result: " + result)
 
 		case msg =>
 			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)

@@ -1,11 +1,8 @@
 package org.ninjatasks.mgmt
 
-import akka.actor.{ActorLogging, Actor}
+import akka.actor.{Props, ActorLogging, Actor}
 import org.ninjatasks.work.Work
 import scala.collection.mutable
-import akka.contrib.pattern.DistributedPubSubExtension
-import akka.contrib.pattern.DistributedPubSubMediator.Publish
-import org.ninjatasks.utils.ManagementConsts.WORK_TOPIC_NAME
 
 /**
  *
@@ -13,14 +10,19 @@ import org.ninjatasks.utils.ManagementConsts.WORK_TOPIC_NAME
  */
 class WorkManager extends Actor with ActorLogging
 {
-	private val pendingWork = new mutable.HashMap[Long, Work[_, _]]()
+	val delegator = context.actorOf(Props[JobDelegator])
+	val jobExtractor = context.actorOf(Props(classOf[JobExtractor], self, delegator))
+	private[this] val pendingWork = new mutable.HashMap[Long, Work[_, _]]
 
 	override def receive =
 	{
 		case work: Work[_, _] =>
 		{
-			pendingWork put (work.id, work)
+			pendingWork put(work.id, work)
 		}
+
+
+		//TODO add usage of job creators
 
 		case WorkDelegationMessage(to) =>
 	}

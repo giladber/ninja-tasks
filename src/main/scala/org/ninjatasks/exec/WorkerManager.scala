@@ -2,12 +2,12 @@ package org.ninjatasks.exec
 
 import akka.actor._
 import scala.collection.mutable
-import org.ninjatasks.work.Job
+import org.ninjatasks.work.ManagedJob
 import org.ninjatasks.mgmt._
 import org.ninjatasks.cluster.TopicAwareActor
-import org.ninjatasks.mgmt.JobMessage
-import org.ninjatasks.mgmt.JobSuccess
 import org.ninjatasks.mgmt.WorkDataMessage
+import akka.actor.SupervisorStrategy.{Resume, Stop, Restart, Escalate}
+import scala.concurrent.duration._
 
 object WorkerManager
 {
@@ -29,22 +29,34 @@ import WorkerManager._
  */
 class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targetTopic = MGMT_TOPIC_NAME)
 {
-	private[this] val workData = new mutable.HashMap[Long, Any]()
-	private[this] val requestQueue = new mutable.Queue[ActorRef]()
-	private[this] val jobQueue = new mutable.PriorityQueue[Job[_, _]]()
+	private[this] val workData = new mutable.HashMap[Long, Any]
+	private[this] val requestQueue = new mutable.Queue[ActorRef]
+	private[this] val jobQueue = new mutable.PriorityQueue[ManagedJob[_, _]]
+	private[this] val contexts = new mutable.HashMap[ActorRef, WorkerContext]
 
 	override def preStart() =
 	{
 		super.preStart()
-		(1 to WORKER_NUM) map (s => context.actorOf(Props[Worker], s"worker-$s")) foreach requestQueue.+=
+		contexts.clear()
+		val childActors = (1 to WORKER_NUM) map (s => context.actorOf(Props[Worker], s"worker-$s"))
+		childActors map (a => (a, WorkerContext(a, 0))) foreach contexts.+=
+		childActors foreach requestQueue.+=
 	}
 
-	override def receive =
+	override def receive = super.receive orElse myReceive
+
+	override def postRegister() = requestQueue foreach (_ => publish(JobRequest))
+
+	override val supervisorStrategy: SupervisorStrategy = OneForOneStrategy(maxNrOfRetries = 2,
+																																					withinTimeRange = 10 seconds)
 	{
-		super.receive orElse myReceive
+		case _: ActorInitializationException => Stop
+		case _: ActorKilledException => Stop
+		case _: DeathPactException => Stop
+		case _: IllegalArgumentException => Resume
+		case _: Exception => Restart
+		case _: Throwable => Escalate
 	}
-
-	override def postRegister() = publish(JobRequest)
 
 	private[this] def myReceive: Actor.Receive =
 	{
@@ -52,24 +64,32 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 			jobQueue += job
 			if (!requestQueue.isEmpty)
 			{
-				requestQueue.dequeue ! jobQueue.dequeue
+				send(jobQueue.dequeue(), requestQueue.dequeue())
 			}
 
-		case res: JobSuccess[_] =>
-			requestQueue += sender
+		case res: JobResultMessage =>
+			val s = sender()
+			contexts -= s
+			requestQueue += s
 			if (!jobQueue.isEmpty)
 			{
-				requestQueue.dequeue ! jobQueue.dequeue
+				send(jobQueue.dequeue(), requestQueue.dequeue())
 			}
 			publish(res)
 
-		case JobRequest =>
-			requestQueue += sender
-			publish(JobRequest)
+		case WorkCancelMessage(id) => contexts.values foreach (ctx => ctx.signalStop(id))
 
 		case WorkDataMessage(wId, data) => workData.put(wId, data)
 
 		case msg =>
 			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)
+	}
+
+	private[this] def send[R, D](job: ManagedJob[R, D], target: ActorRef)
+	{
+		job.workData = workData.get(job.workId).get.asInstanceOf[D]
+		val ctx = WorkerContext(target, job.workId)
+		contexts update(target, ctx)
+		target ! JobExecution(job, ctx.promise.future)
 	}
 }

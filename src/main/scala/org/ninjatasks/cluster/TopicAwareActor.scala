@@ -47,10 +47,8 @@ abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extend
 	override def receive =
 	{
 		case SubscribeAck(s) =>
-		{
 			log.info("Actor {} subscribed to topic {}", s.ref, s.topic)
 			postSubscribe()
-		}
 
 		case UnsubscribeAck(s) => log.info("Actor {} unsubscribed from topic {}", s.ref, s.topic)
 
