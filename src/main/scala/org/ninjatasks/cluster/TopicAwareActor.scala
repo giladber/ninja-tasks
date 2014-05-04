@@ -66,7 +66,7 @@ abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extend
 			}
 
 		case ComponentStartedAck =>
-			log.debug("Received ack reply from {}", sender())
+			log.info("Received ack reply from {}", sender())
 			replyReceived = true
 			postRegister()
 	}

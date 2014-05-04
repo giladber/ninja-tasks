@@ -15,7 +15,7 @@ trait JobCreator[T, D]
 	 * @param amount maximum number of jobs to return
 	 * @return set of un-traversed jobs
 	 */
-	def create(amount: Long): Set[ManagedJob[T, D]]
+	def create(amount: Long): Set[ExecutableJob[T, D]]
 
 	/**
 	 * Returns the remaining number of jobs to be created
@@ -30,7 +30,18 @@ abstract class AbstractJobCreator[T, D](val work: Work[T, D]) extends JobCreator
 
 	override def remaining = work.jobNum - produced
 
+	/**
+	 * Updated the number of already produced jobs by this creator.
+	 * This method is to be used in conjunction with the overriden create() method,
+	 * in order to make sure that the number of already produced jobs is updated.
+	 * @param created number of additionally created jobs.
+	 */
 	protected def updateProduced(created: Long) = produced += created
+}
+
+object JobSetIterator
+{
+	def apply[T, D](producer: JobCreator[T, D], serial: Long) = new JobSetIterator[T, D](producer, serial)
 }
 
 /**
@@ -39,13 +50,21 @@ abstract class AbstractJobCreator[T, D](val work: Work[T, D]) extends JobCreator
  * @tparam T Type returned by the work's underlying jobs
  * @tparam D Type of the work's data object
  */
-trait JobSetIterator[T, D] extends Iterator[Set[ManagedJob[T, D]]]
+class JobSetIterator[T, D](val producer: JobCreator[T, D],
+													 val serial: Long) extends Iterator[Set[ExecutableJob[T, D]]] with Ordered[JobSetIterator[_, _]]
 {
-	protected val producer: JobCreator[T, D]
-
 	override def hasNext = producer.remaining > 0
 
 	override def next() = producer.create(1)
 
-	def next(amount: Long) = producer.create(amount)
+	def next(amount: Long): Set[ExecutableJob[T, D]] = producer.create(amount)
+
+	def priority: Int = producer.work.priority
+
+	override def compare(that: JobSetIterator[_, _]) =
+		this.priority - that.priority match
+		{
+			case x if x != 0 => x
+			case x if x == 0 => (that.serial - this.serial).toInt
+		}
 }

@@ -22,9 +22,12 @@ class WorkerContext(val promise: Promise[Int], val workId: Long, val worker: Act
 	 * @param cancelledWorkId ID of work which should be cancelled
 	 */
 	def signalStop(cancelledWorkId: Long): Unit =
+	{
+		println("Received signal to stop work " + cancelledWorkId)
 		if (cancelledWorkId == workId)
 		{
 			promise.success(1)
 		}
+	}
 
 }

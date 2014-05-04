@@ -1,6 +1,6 @@
 package org.ninjatasks.mgmt
 
-import org.ninjatasks.work.ManagedJob
+import org.ninjatasks.work.{ExecutableJob, ManagedJob}
 import akka.actor.ActorSelection
 import scala.concurrent.Future
 
@@ -13,7 +13,7 @@ sealed trait ManagementProtocolMessage extends Serializable
 
 sealed trait JobResultMessage extends ManagementProtocolMessage
 
-private[ninjatasks] case class AggregateJobMessage(jobs: Set[ManagedJob[_, _]]) extends ManagementProtocolMessage
+private[ninjatasks] case class AggregateJobMessage(jobs: Set[ExecutableJob[_, _]]) extends ManagementProtocolMessage
 
 private[ninjatasks] case class JobSetRequest(max: Long) extends ManagementProtocolMessage
 

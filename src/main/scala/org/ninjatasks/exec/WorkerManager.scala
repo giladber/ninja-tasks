@@ -29,9 +29,29 @@ import WorkerManager._
  */
 class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targetTopic = MGMT_TOPIC_NAME)
 {
+	/**
+	 * Map used to store work data objects.
+	 * Since work data objects may be of any kind, the value type here is Any.
+	 */
 	private[this] val workData = new mutable.HashMap[Long, Any]
+
+	/**
+	 * Queue of pending job requests made by this actor's children.
+	 * At any time, there should be at most WORKER_NUM pending requests in this queue.
+	 */
 	private[this] val requestQueue = new mutable.Queue[ActorRef]
-	private[this] val jobQueue = new mutable.PriorityQueue[ManagedJob[_, _]]
+
+	/**
+	 * Queue of job objects waiting to be processed by this actor's children.
+	 * This queue should consist of at most WORKER_NUM pending jobs at any time.
+	 */
+	private[this] val jobQueue = new mutable.Queue[ManagedJob[_, _]]
+
+	/**
+	 * Map of WorkerContext objects, indexed by their owning ActorRef.
+	 * WorkerContext objects are used to stop execution of currently running jobs,
+	 * and are replaced every time a new job begins execution in the actor.
+	 */
 	private[this] val contexts = new mutable.HashMap[ActorRef, WorkerContext]
 
 	override def preStart() =
@@ -45,14 +65,18 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 
 	override def receive = super.receive orElse myReceive
 
-	override def postRegister() = requestQueue foreach (_ => publish(JobRequest))
+	override def postRegister() =
+	{
+		requestQueue foreach (_ => publish(JobRequest))
+		log.info("Sent {} job requests to job delegator", requestQueue.size)
+	}
 
 	override val supervisorStrategy: SupervisorStrategy = OneForOneStrategy(maxNrOfRetries = 2,
 																																					withinTimeRange = 10 seconds)
 	{
 		case _: ActorInitializationException => Stop
-		case _: ActorKilledException => Stop
-		case _: DeathPactException => Stop
+		case _: ActorKilledException => Restart
+		case _: DeathPactException => Restart
 		case _: IllegalArgumentException => Resume
 		case _: Exception => Restart
 		case _: Throwable => Escalate
@@ -77,7 +101,9 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 			}
 			publish(res)
 
-		case WorkCancelMessage(id) => contexts.values foreach (ctx => ctx.signalStop(id))
+		case WorkCancelMessage(id) =>
+			log.info("Received cancel message for work id {}", id)
+			contexts.values foreach (ctx => ctx.signalStop(id))
 
 		case WorkDataMessage(wId, data) => workData.put(wId, data)
 
@@ -87,9 +113,15 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 
 	private[this] def send[R, D](job: ManagedJob[R, D], target: ActorRef)
 	{
-		job.workData = workData.get(job.workId).get.asInstanceOf[D]
+		putWorkData(job.workId, job)
 		val ctx = WorkerContext(target, job.workId)
 		contexts update(target, ctx)
 		target ! JobExecution(job, ctx.promise.future)
+	}
+
+	private[this] def putWorkData[D, R](workId: Long, job: ManagedJob[R, D])
+	{
+		val dataOption = workData.get(job.workId)
+		dataOption map (work => job.workData = work.asInstanceOf[D])
 	}
 }

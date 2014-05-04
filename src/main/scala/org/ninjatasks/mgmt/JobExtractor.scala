@@ -16,18 +16,20 @@ class JobExtractor(val workSource: ActorRef, val delegator: ActorRef) extends Ac
 	def scheduler = context.system.scheduler
 
 	override def preStart() =
-		cancelOption foreach (c => c.cancel())
-
-	//TODO still need to wrap this cancellable in the cancelOption and to cancel/renew it upon reset etc.
-	val cancellable = scheduler.schedule(initialDelay = 0 seconds, interval = 1 second)
 	{
-		val f = ask(delegator, JobCapacityRequest)(timeout = 500 millis)
-		f map
-			{
-				case JobCapacity(amount) => JobSetRequest(amount)
-				case e: AskTimeoutException => throw e
-				case _ => throw new IllegalArgumentException("Invalid response received to job capacity request")
-			} pipeTo workSource
+		cancelOption foreach (c => c.cancel())
+		val cancellable = scheduler.schedule(initialDelay = 0 seconds, interval = 1 second)
+		{
+			val f = ask(delegator, JobCapacityRequest)(timeout = 500 millis)
+			f map
+				{
+					case JobCapacity(amount) => JobSetRequest(amount)
+					case e: AskTimeoutException => throw e
+					case _ => throw new IllegalArgumentException("Invalid response received to job capacity request")
+				} pipeTo workSource
+		}
+
+		cancelOption = Some(cancellable)
 	}
 
 	override def receive =
