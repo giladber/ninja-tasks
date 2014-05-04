@@ -18,7 +18,6 @@ class SleepJob(val time: Short, val id: Long, val priority: Int, val workId: Lon
 		var i = 0
 		while (i < 3)
 		{
-			println("stop = "+shouldStop.get()+" in "+this)
 			if (shouldStop.get)
 			{
 				println("Stopped!")

@@ -66,12 +66,8 @@ private[ninjatasks] class ManagedJob[R, D](val job: ExecutableJob[R, D])
 		cancel = Some(cancelFuture)
 		cancelFuture.onComplete(
 		{
-			case _ =>
-				println("changing stop to true!")
-				job.shouldStop.compareAndSet(false, true)
-				println("stop1 = " + job.shouldStop.get())
+			case _ =>	job.shouldStop.compareAndSet(false, true)
 		})
-		println("Added future " + cancelFuture + " to job " + this+", inner job is "+job)
 		this
 	}
 
