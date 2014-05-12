@@ -86,19 +86,13 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	{
 		case JobMessage(job) =>
 			jobQueue += job
-			if (!requestQueue.isEmpty)
-			{
-				send(jobQueue.dequeue(), requestQueue.dequeue())
-			}
+			requestQueue.headOption foreach(_ => send(jobQueue.dequeue(), requestQueue.dequeue()))
 
 		case res: JobResultMessage =>
 			val s = sender()
 			contexts -= s
 			requestQueue += s
-			if (!jobQueue.isEmpty)
-			{
-				send(jobQueue.dequeue(), requestQueue.dequeue())
-			}
+			jobQueue.headOption foreach(_ => send(jobQueue.dequeue(), requestQueue.dequeue()))
 			publish(res)
 
 		case WorkCancelMessage(id) =>
@@ -122,6 +116,6 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	private[this] def putWorkData[D, R](workId: Long, job: ManagedJob[R, D])
 	{
 		val dataOption = workData.get(job.workId)
-		dataOption map (work => job.workData = work.asInstanceOf[D])
+		dataOption foreach(work => job.workData = work.asInstanceOf[D])
 	}
 }

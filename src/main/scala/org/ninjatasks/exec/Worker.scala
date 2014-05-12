@@ -27,10 +27,7 @@ class Worker extends Actor with ActorLogging
 		case JobExecution(job, future) =>
 			stop = false
 			log.info("{} is beginning execution of job id {}", self, job.id)
-			try
-			{
-				sender ! JobSuccess(job.withFuture(future).execute(), job.id)
-			}
+			try sender ! JobSuccess(job.withFuture(future).execute(), job.id)
 			catch
 				{
 					case e: Exception => sender ! JobFailure(e, job.id)

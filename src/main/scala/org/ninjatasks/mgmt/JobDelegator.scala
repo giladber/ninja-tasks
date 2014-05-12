@@ -55,27 +55,18 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 				job.serial = serialProvider.getAndIncrement
 				jobQueue += job
 			})
-			if (!jobRequestQueue.isEmpty)
-			{
-				send(jobRequestQueue.dequeue(), jobQueue.dequeue()) /* ! JobMessage(jobQueue.dequeue())*/
-			}
+			jobRequestQueue.headOption foreach(_ => send(jobRequestQueue.dequeue(), jobQueue.dequeue()))
 
 		case JobMessage(job) =>
 			log.info("Received job message with job: {}", job)
 			job.serial = serialProvider.getAndIncrement
 			jobQueue += job
-			if (!jobRequestQueue.isEmpty)
-			{
-				send(jobRequestQueue.dequeue(), jobQueue.dequeue()) /* ! JobMessage(jobQueue.dequeue())*/
-			}
+			jobRequestQueue.headOption foreach(_ => send(jobRequestQueue.dequeue(), jobQueue.dequeue()))
 
 		case JobRequest =>
 			log.info("Received job request from {}", sender())
 			jobRequestQueue += sender()
-			if (!jobQueue.isEmpty)
-			{
-				send(jobRequestQueue.dequeue(), jobQueue.dequeue()) /* ! JobMessage(jobQueue.dequeue())*/
-			}
+			jobQueue.headOption foreach(_ => send(jobRequestQueue.dequeue(), jobQueue.dequeue()))
 
 		case js: JobSuccess[_] =>
 			log.debug("Received result: " + js.res)
