@@ -8,6 +8,7 @@ import org.ninjatasks.cluster.TopicAwareActor
 import org.ninjatasks.mgmt.WorkDataMessage
 import akka.actor.SupervisorStrategy.{Resume, Stop, Restart, Escalate}
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 object WorkerManager
 {
@@ -87,19 +88,21 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 		case JobMessage(job) =>
 			jobQueue += job
 			requestQueue.headOption foreach(_ => send(jobQueue.dequeue(), requestQueue.dequeue()))
-
-		case res: JobResultMessage =>
+ 
+		case res: JobResult =>
 			val s = sender()
 			contexts -= s
 			requestQueue += s
 			jobQueue.headOption foreach(_ => send(jobQueue.dequeue(), requestQueue.dequeue()))
 			publish(res)
 
-		case WorkCancelMessage(id) =>
+		case WorkCancelRequest(id) =>
 			log.info("Received cancel message for work id {}", id)
-			contexts.values foreach (ctx => ctx.signalStop(id))
+			contexts.values filter (ctx => ctx.workId == id) foreach (_.signalStop())
 
 		case WorkDataMessage(wId, data) => workData.put(wId, data)
+
+		case WorkDataRemoval(wId) => workData -= wId
 
 		case msg =>
 			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)

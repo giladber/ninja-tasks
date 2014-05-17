@@ -3,16 +3,18 @@ package org.ninjatasks.mgmt
 import akka.actor._
 import scala.collection.mutable
 import org.ninjatasks.work.ExecutableJob.toManaged
-import org.ninjatasks.work.{SleepJob, ManagedJob}
+import org.ninjatasks.work.ManagedJob
 import org.ninjatasks.cluster.TopicAwareActor
-import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME}
+import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX}
 import java.util.concurrent.atomic.AtomicLong
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
+import akka.contrib.pattern.DistributedPubSubMediator.Publish
+import org.ninjatasks.examples.SleepJob
 
 object JobDelegator
 {
-	val JOB_QUEUE_MAX_LENGTH: Long = 1E6.toLong
+	val JOB_QUEUE_MAX_LENGTH: Long = 1E5.toLong
 }
 
 /**
@@ -24,11 +26,27 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 
 	import JobDelegator._
 
+	/**
+	 * Queue of jobs that are pending processing.
+	 * The jobs are sorted in order of:
+	 * 	1. priority
+	 * 	2. insertion
+	 * respectively.
+	 */
 	private[this] val jobQueue = mutable.PriorityQueue[ManagedJob[_, _]]()
+
+	/**
+	 * Queue of pending job requests from processing actors.
+	 */
 	private[this] val jobRequestQueue = mutable.Queue[ActorRef]()
+
+	/**
+	 * Serial number provider for incoming jobs.
+	 * Used to provide insertion-ordering for the priority job queue.
+	 */
 	private[this] val serialProvider = new AtomicLong()
 
-	private[this] def freeTasks = JOB_QUEUE_MAX_LENGTH - jobQueue.size
+	private[this] def availableTaskSpace = JOB_QUEUE_MAX_LENGTH - jobQueue.size
 
 	override def receive =
 	{
@@ -42,58 +60,52 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 		context.system.scheduler.scheduleOnce(3 seconds)
 		{
 			println("Sent cancel msg")
-			self ! WorkCancelMessage(1010100)
+			self ! WorkCancelRequest(1010100)
 		}
+	}
+
+	private[this] def addJob(job: ManagedJob[_,_]) =
+	{
+		job.serial = serialProvider.getAndIncrement
+		jobQueue += job
 	}
 
 	private[this] def myReceive: Actor.Receive =
 	{
 		case AggregateJobMessage(jobs) =>
 			log.info("Received aggregate job message with {} jobs", jobs.size)
-			jobs foreach (job =>
-			{
-				job.serial = serialProvider.getAndIncrement
-				jobQueue += job
-			})
-			jobRequestQueue.headOption foreach(_ => send(jobRequestQueue.dequeue(), jobQueue.dequeue()))
+			jobs foreach addJob
+			jobRequestQueue.headOption foreach(_ => sendJob())
 
 		case JobMessage(job) =>
 			log.info("Received job message with job: {}", job)
-			job.serial = serialProvider.getAndIncrement
-			jobQueue += job
-			jobRequestQueue.headOption foreach(_ => send(jobRequestQueue.dequeue(), jobQueue.dequeue()))
+			addJob(job)
+			jobRequestQueue.headOption foreach(_ => sendJob())
 
 		case JobRequest =>
 			log.info("Received job request from {}", sender())
 			jobRequestQueue += sender()
-			jobQueue.headOption foreach(_ => send(jobRequestQueue.dequeue(), jobQueue.dequeue()))
+			jobQueue.headOption foreach(_ => sendJob())
 
-		case js: JobSuccess[_] =>
-			log.debug("Received result: " + js.res)
-			context.parent ! js
+		case res: JobResult =>
+			mediator ! Publish(JOBS_TOPIC_PREFIX + res.workId, res)
 
-		case JobCapacityRequest => sender() ! JobCapacity(freeTasks)
+		case JobCapacityRequest => sender() ! JobCapacity(availableTaskSpace)
 
-		case wcm: WorkCancelMessage =>
-			log.info("Received cancel message for work id {}", wcm.workId)
-			publish(wcm)
+		case wcr: WorkCancelRequest =>
+			log.info("Received cancel message for work id {}", wcr.workId)
+			publish(wcr)
 
 		case msg =>
 			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)
 	}
 
-	private[ninjatasks] implicit def toJobMsg[R, D](job: ManagedJob[R, D]): JobMessage = JobMessage(job)
-
 	/**
 	 * The purpose of this method is to reduce clutter for sending job messages to workers.
-	 * It uses the toJobMsg implicit conversion to avoid having to write JobMessage(...) each time.
-	 * @param to target
-	 * @param msg job msg
 	 */
-	private[this] def send(to: ActorRef, msg: JobMessage): Unit =
+	private[this] def sendJob(): Unit =
 	{
-		log.info("Sending job message {} to {}", msg, to)
-		to ! msg
+		jobRequestQueue.dequeue() ! JobMessage(jobQueue.dequeue())
 	}
 
 }

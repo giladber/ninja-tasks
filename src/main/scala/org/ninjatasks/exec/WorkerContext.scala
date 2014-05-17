@@ -18,16 +18,14 @@ class WorkerContext(val promise: Promise[Int], val workId: Long, val worker: Act
 {
 
 	/**
-	 * Signals the targeted actor to stop if it is executing jobs from the parameter work.
-	 * @param cancelledWorkId ID of work which should be cancelled
+	 * Finishes execution of the promise object, which will cause its wrapping future
+	 * to also stop, hopefully causing the executing job to stop in the near future (depends
+	 * on client code).
 	 */
-	def signalStop(cancelledWorkId: Long): Unit =
+	def signalStop(): Unit =
 	{
-		println("Received signal to stop work " + cancelledWorkId)
-		if (cancelledWorkId == workId)
-		{
-			promise.success(1)
-		}
+		println("Received signal to stop work " + workId)
+		promise.success(1)
 	}
 
 }

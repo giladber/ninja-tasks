@@ -41,7 +41,7 @@ abstract class AbstractJobCreator[T, D](val work: Work[T, D]) extends JobCreator
 
 object JobSetIterator
 {
-	def apply[T, D](producer: JobCreator[T, D], serial: Long) = new JobSetIterator[T, D](producer, serial)
+	def apply[T, D](producer: JobCreator[T, D], serial: Long) = new JobSetIterator(producer, serial)
 }
 
 /**

@@ -1,4 +1,6 @@
-package org.ninjatasks.work
+package org.ninjatasks.examples
+
+import org.ninjatasks.work.ExecutableJob
 
 object SleepJob
 {
