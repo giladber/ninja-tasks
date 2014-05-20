@@ -19,25 +19,17 @@ object ManagementConsts
 	 */
 	val system = ActorSystem(systemName)
 
-	/**
-	 * String representing the worker manager role.
-	 */
 	val WORKER_MGR_ROLE = "WorkerManager"
 
-	/**
-	 * String representing the job manager role.
-	 */
 	val JOB_DELEGATOR_ROLE = "JobDelegator"
 
-	/**
-	 * Name of the worker manager actor.
-	 */
 	val WORKER_MGR_ACTOR_NAME = "worker_manager"
 
-	/**
-	 * Name of the job manager actor.
-	 */
 	val JOB_DELEGATOR_ACTOR_NAME = "job_delegator"
+
+	val WORK_MGR_ACTOR_NAME = "work_mgr"
+
+	val JOB_EXTRACTOR_ACTOR_NAME = "job_extractor"
 
 	/**
 	 * Name of the topic through which messages are sent to job managers.

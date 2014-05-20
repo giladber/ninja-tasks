@@ -4,31 +4,28 @@ import org.ninjatasks.work.ExecutableJob
 
 object SleepJob
 {
-	def apply(time: Short, id: Long, priority: Int, workId: Long) = new SleepJob(time, id, priority, workId)
+	def apply(time: Int, id: Long, priority: Int, workId: Long) = new SleepJob(time, id, priority, workId)
 }
 
 /**
  *
  * Created by Gilad Ber on 4/15/14.
  */
-class SleepJob(val time: Short, val id: Long, val priority: Int, val workId: Long) extends ExecutableJob[Unit, Unit] with Serializable
+class SleepJob(val time: Int, val id: Long, val priority: Int, val workId: Long)
+	extends ExecutableJob[Int, Unit]
+	with Serializable
 {
 	@transient override var workData = ()
 
-	override def execute(): Unit =
+	override def execute(): Int =
 	{
-		var i = 0
-		while (i < 3)
+		var total = 0
+		for (i <- 1 to 3 if !shouldStop.get())
 		{
-			if (shouldStop.get)
-			{
-				println("Stopped!")
-				return
-			}
-			println("sleeping...")
 			Thread.sleep(time)
-			println("slept!")
-			i = i + 1
+			total = total + time
 		}
+		println(s"time slept is $total, was stopped: "+shouldStop.get())
+		total
 	}
 }

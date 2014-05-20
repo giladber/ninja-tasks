@@ -2,15 +2,11 @@ package org.ninjatasks.mgmt
 
 import akka.actor._
 import scala.collection.mutable
-import org.ninjatasks.work.ExecutableJob.toManaged
 import org.ninjatasks.work.ManagedJob
 import org.ninjatasks.cluster.TopicAwareActor
 import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX}
 import java.util.concurrent.atomic.AtomicLong
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
-import org.ninjatasks.examples.SleepJob
 
 object JobDelegator
 {
@@ -55,13 +51,14 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 
 	override def postRegister() =
 	{
-		println("Sending job messages")
-		jobRequestQueue foreach (ref => self ! JobMessage(SleepJob(time = 5000, id = 1, priority = 5, workId = 1010100)))
-		context.system.scheduler.scheduleOnce(3 seconds)
-		{
-			println("Sent cancel msg")
-			self ! WorkCancelRequest(1010100)
-		}
+		println("Registration successful")
+//		println("Sending job messages")
+//		jobRequestQueue foreach (ref => self ! JobMessage(SleepJob(time = 5000, id = 1, priority = 5, workId = 1010100)))
+//		context.system.scheduler.scheduleOnce(3 seconds)
+//		{
+//			println("Sent cancel msg")
+//			self ! WorkCancelRequest(1010100)
+//		}
 	}
 
 	private[this] def addJob(job: ManagedJob[_,_]) =
@@ -75,7 +72,11 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 		case AggregateJobMessage(jobs) =>
 			log.info("Received aggregate job message with {} jobs", jobs.size)
 			jobs foreach addJob
-			jobRequestQueue.headOption foreach(_ => sendJob())
+			log.info("request q size: {}, job q size: {}", jobRequestQueue.size, jobQueue.size)
+			jobRequestQueue.
+				take(Math.min(jobRequestQueue.size, jobQueue.size)).
+				map(_ => (jobRequestQueue.dequeue(), jobQueue.dequeue())).
+				foreach(r => sendJob(r._1, r._2))
 
 		case JobMessage(job) =>
 			log.info("Received job message with job: {}", job)
@@ -88,9 +89,13 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 			jobQueue.headOption foreach(_ => sendJob())
 
 		case res: JobResult =>
+			log.info("received job result for job id {}", res.jobId)
 			mediator ! Publish(JOBS_TOPIC_PREFIX + res.workId, res)
 
-		case JobCapacityRequest => sender() ! JobCapacity(availableTaskSpace)
+		case JobCapacityRequest =>
+			val answer = availableTaskSpace
+			log.debug("sending available task space {}", answer)
+			sender() ! JobCapacity(answer)
 
 		case wcr: WorkCancelRequest =>
 			log.info("Received cancel message for work id {}", wcr.workId)
@@ -105,7 +110,13 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 	 */
 	private[this] def sendJob(): Unit =
 	{
-		jobRequestQueue.dequeue() ! JobMessage(jobQueue.dequeue())
+		sendJob(jobRequestQueue.dequeue(), jobQueue.dequeue())
+	}
+
+	private[this] def sendJob(to: ActorRef, job: ManagedJob[_, _]): Unit =
+	{
+		log.info("sending job id {}", job.id)
+		to ! JobMessage(job)
 	}
 
 }

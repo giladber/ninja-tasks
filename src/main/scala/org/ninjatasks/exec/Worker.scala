@@ -2,6 +2,7 @@ package org.ninjatasks.exec
 
 import akka.actor.{Actor, ActorLogging}
 import org.ninjatasks.mgmt.{JobRequest, JobExecution, JobFailure, JobSuccess}
+import scala.util.{Failure, Success, Try}
 
 /**
  *
@@ -26,12 +27,13 @@ class Worker extends Actor with ActorLogging
 	{
 		case JobExecution(job, future) =>
 			stop = false
-			log.info("{} is beginning execution of job id {}", self, job.id)
-			try sender ! JobSuccess(job.withFuture(future).execute(), job.id, job.workId)
-			catch
-				{
-					case e: Exception => sender ! JobFailure(e, job.id, job.workId)
-				}
+			log.info("beginning execution of job id {}", job.id)
+
+			Try(job.withFuture(future).execute()) match {
+				case Success(res) => sender() ! JobSuccess(res, job.id, job.workId)
+				case Failure(ex) => sender() ! JobFailure(ex, job.id, job.workId)
+			}
+
 		case msg =>
 			throw new IllegalArgumentException("Invalid input for worker: " + msg + "from sender " + sender)
 	}

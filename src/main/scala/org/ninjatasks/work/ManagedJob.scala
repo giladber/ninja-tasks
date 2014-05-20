@@ -4,9 +4,10 @@ import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import java.util.concurrent.atomic.AtomicBoolean
 
-object ExecutableJob
+object ManagedJob
 {
-	implicit def toManaged[R, D](job: ExecutableJob[R, D]): ManagedJob[R, D] = new ManagedJob(job)
+	def apply[R, D](job: ExecutableJob[R, D]) = new ManagedJob(job)
+	implicit def exec2man[R, D](job: ExecutableJob[R, D]): ManagedJob[R, D] = ManagedJob(job)
 }
 
 /**
@@ -17,7 +18,7 @@ object ExecutableJob
  * @tparam R type of result from the execution
  * @tparam D type of work data object
  */
-trait ExecutableJob[R, D]
+trait ExecutableJob[+R, D]
 {
 	val id: Long
 
@@ -36,8 +37,10 @@ trait ExecutableJob[R, D]
  * Introduces management and execution related semantics and methods to ordinary job objects.
  * Created by Gilad Ber on 4/15/14.
  */
-private[ninjatasks] class ManagedJob[R, D](val job: ExecutableJob[R, D])
-	extends Ordered[ManagedJob[_, _]] with ExecutableJob[R, D] with Serializable
+private[ninjatasks] class ManagedJob[+R, D](val job: ExecutableJob[R, D])
+																					extends Ordered[ManagedJob[_, _]]
+																					with ExecutableJob[R, D]
+																					with Serializable
 {
 	private[this] var cancel: Option[Future[_]] = None
 

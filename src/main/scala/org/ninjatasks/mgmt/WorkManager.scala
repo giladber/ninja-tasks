@@ -1,8 +1,8 @@
 package org.ninjatasks.mgmt
 
 import akka.actor.{Props, ActorLogging, Actor}
-import org.ninjatasks.work.{ManagedJob, JobSetIterator, Work}
-import org.ninjatasks.utils.ManagementConsts.{WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX, WORK_TOPIC_PREFIX}
+import org.ninjatasks.work.{ManagedWork, ManagedJob, JobSetIterator, Work}
+import org.ninjatasks.utils.ManagementConsts.{WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX, WORK_TOPIC_PREFIX, JOB_EXTRACTOR_ACTOR_NAME, JOB_DELEGATOR_ACTOR_NAME}
 import scala.collection.mutable
 import akka.contrib.pattern.DistributedPubSubExtension
 import java.util.concurrent.atomic.AtomicLong
@@ -23,7 +23,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	/**
 	 * Job delegator, responsible for delegating job requests to remote worker managers.
 	 */
-	private[this] val delegator = context.actorOf(Props[JobDelegator])
+	private[this] val delegator = context.actorOf(Props[JobDelegator], JOB_DELEGATOR_ACTOR_NAME)
 
 	private[this] val mediator = DistributedPubSubExtension(context.system).mediator
 
@@ -38,7 +38,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	 * number of tasks remaining to be processed.
 	 * The key of the map is the work object's id.
 	 */
-	private[this] val workData = new mutable.HashMap[Long, (Work[_, _], Long)]
+	private[this] val workData = new mutable.HashMap[Long, (ManagedWork[_, _, _], Long)]
 
 	/**
 	 * Atomic object which produces serial numbers for incoming work objects.
@@ -46,22 +46,24 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	 */
 	private[this] val serialProducer = new AtomicLong()
 
-	context.actorOf(Props(classOf[JobExtractor], self, delegator))
+	context.actorOf(Props(classOf[JobExtractor], self, delegator), JOB_EXTRACTOR_ACTOR_NAME)
 
 	override def receive =
 	{
-		case work: Work[_, _] =>
-			workData put(work.id, (work, work.jobNum))
-			pendingWork += JobSetIterator(work.creator, serialProducer.getAndIncrement)
-			mediator ! Subscribe(JOBS_TOPIC_PREFIX + work.id, self)
-			mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(work.id, work.data))
-			sender() ! WorkStarted(work.id)
+		case work: Work[_, _, _] =>
+			val wrapped = ManagedWork(work)
+			workData.put(wrapped.id, (wrapped, wrapped.jobNum))
+			pendingWork += JobSetIterator(wrapped.creator, serialProducer.getAndIncrement)
+			mediator ! Subscribe(JOBS_TOPIC_PREFIX + wrapped.id, self)
+			mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(wrapped.id, wrapped.data))
+			sender() ! WorkStarted(wrapped.id)
 
 		case JobSetRequest(amount) =>
-			if (!pendingWork.isEmpty)
+			pendingWork.headOption foreach (head =>
 			{
-				sender() ! take(amount)
-			}
+				val jobs = take(amount)
+				delegator ! AggregateJobMessage(jobs)
+			})
 
 		case wcm: WorkCancelRequest =>
 			delegator ! wcm
@@ -76,18 +78,19 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 			val valueOption = workData.get(js.workId) map (v => (v._1, v._2 - 1))
 			val entryOption = valueOption map (v => (v._1.id, (v._1, v._2)))
 			entryOption foreach workData.+=
-			valueOption filter (v => v._2 == 0) map (v => v._1) foreach (work => removeWork(work.id, WorkFinished(work.id, work.result)))
 			valueOption map (v => v._1) foreach (w => receiveResult(w, js))
+			valueOption filter (v => v._2 == 0) map (v => v._1) foreach (work => removeWork(work.id, WorkFinished(work.id,
+																																																						work.result)))
 
 		case SubscribeAck(s) => log.info("Subscribed to topic {}", s.topic)
 
 		case UnsubscribeAck(u) => log.info("Unsubscribed from topic {}", u.topic)
 	}
 
-	private[this] def receiveResult[T](work: Work[T, _], js: JobSuccess[_]) =
-		work.result = work.combine(work.result, js.res.asInstanceOf[T])
+	private[this] def receiveResult[T](work: ManagedWork[T, _, _], js: JobSuccess[_]) =
+		work.update(js.res.asInstanceOf[T])
 
-	private[this] def removeWork(workId: Long, msg: WorkResultMessage) =
+	private[this] def removeWork(workId: Long, msg: WorkResult) =
 	{
 		filterWorkQueue(workId)
 		mediator ! Unsubscribe(JOBS_TOPIC_PREFIX + workId, self)
@@ -105,15 +108,17 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		tempWorkQueue filter (it => it.producer.work.id != workId) foreach pendingWork.+=
 	}
 
+	import scala.collection.immutable
+
 	/**
 	 * Creates and returns at most n new, unprocessed job objects to be processed.
 	 * @param maxTasks maximum number of objects to process
 	 * @return Set consisting of at most n unprocessed job objects
 	 */
-	private[this] def take(maxTasks: Long): Set[_ >: ManagedJob[_, _]] = takeRec(maxTasks, Set.empty)
+	private[this] def take(maxTasks: Long) = takeRec(maxTasks, immutable.Seq.empty[ManagedJob[_, _]])
 
 	@tailrec
-	private[this] def takeRec(n: Long, jobs: Set[_ >: ManagedJob[_, _]]): Set[_ >: ManagedJob[_, _]] =
+	private[this] def takeRec(n: Long, jobs: immutable.Seq[ManagedJob[_, _]]): immutable.Seq[ManagedJob[_, _]] =
 	{
 		if (n <= 0 || pendingWork.isEmpty)
 		{
@@ -122,7 +127,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		else
 		{
 			val head = pendingWork.head
-			val nextJobs: Set[_ >: ManagedJob[_, _]] = jobs ++ head.next(n)
+			val nextJobs: immutable.Seq[ManagedJob[_, _]] = jobs ++ head.next(n)
 			if (!head.hasNext)
 			{
 				pendingWork.dequeue()

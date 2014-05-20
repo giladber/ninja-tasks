@@ -17,7 +17,10 @@ sealed abstract class JobResult(val workId: Long, val jobId: Long) extends Manag
 /**
  * Father class of all work result type classes.
  */
-sealed trait WorkResultMessage extends ManagementProtocolMessage
+sealed trait WorkResult extends ManagementProtocolMessage
+
+
+import scala.collection.immutable
 
 /**
  * A message containing multiple job objects to be processed.
@@ -25,7 +28,7 @@ sealed trait WorkResultMessage extends ManagementProtocolMessage
  * may contain jobs of different types (i.e. both a ManagedJob[X, Y] and ManagedJob[A, B]).
  * @param jobs set of job objects to be processed
  */
-private[ninjatasks] case class AggregateJobMessage(jobs: Set[ManagedJob[_, _]]) extends ManagementProtocolMessage
+private[ninjatasks] case class AggregateJobMessage(jobs: immutable.Seq[ManagedJob[_, _]]) extends ManagementProtocolMessage
 
 /**
  * A message containing a single job to be processed. This message is sent to the job delegator and
@@ -145,17 +148,17 @@ private[ninjatasks] case class WorkStarted(workId: Long) extends ManagementProto
  * @param result Result of the execution.
  * @tparam R Type of the result object.
  */
-private[ninjatasks] case class WorkFinished[R](workId: Long, result: R) extends WorkResultMessage
+private[ninjatasks] case class WorkFinished[R](workId: Long, result: R) extends WorkResult
 
 /**
  * A notification that the execution of a work request has failed, along with its reason.
  * @param workId ID of the failed work.
  * @param reason Reason for failure.
  */
-private[ninjatasks] case class WorkFailed(workId: Long, reason: Throwable) extends WorkResultMessage
+private[ninjatasks] case class WorkFailed(workId: Long, reason: Throwable) extends WorkResult
 
 /**
  * A notification that the execution of a work request has been cancelled, as per request by a client.
  * @param workId The ID of the cancelled work.
  */
-private[ninjatasks] case class WorkCancelled(workId: Long) extends WorkResultMessage
+private[ninjatasks] case class WorkCancelled(workId: Long) extends WorkResult

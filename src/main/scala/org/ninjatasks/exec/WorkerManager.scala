@@ -86,23 +86,30 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	private[this] def myReceive: Actor.Receive =
 	{
 		case JobMessage(job) =>
+			log.info("Received job message with job id {}", job.id)
 			jobQueue += job
 			requestQueue.headOption foreach(_ => send(jobQueue.dequeue(), requestQueue.dequeue()))
  
 		case res: JobResult =>
+			log.info("Received job result for job {}", res.jobId)
 			val s = sender()
 			contexts -= s
 			requestQueue += s
 			jobQueue.headOption foreach(_ => send(jobQueue.dequeue(), requestQueue.dequeue()))
 			publish(res)
+			publish(JobRequest)
 
 		case WorkCancelRequest(id) =>
 			log.info("Received cancel message for work id {}", id)
 			contexts.values filter (ctx => ctx.workId == id) foreach (_.signalStop())
 
-		case WorkDataMessage(wId, data) => workData.put(wId, data)
+		case WorkDataMessage(wId, data) =>
+			log.info("received work data message for work {}", wId)
+			workData.put(wId, data)
 
-		case WorkDataRemoval(wId) => workData -= wId
+		case WorkDataRemoval(wId) =>
+			log.info("Received work data remove msg for work {}", wId)
+		  workData -= wId
 
 		case msg =>
 			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)
@@ -114,6 +121,7 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 		val ctx = WorkerContext(target, job.workId)
 		contexts update(target, ctx)
 		target ! JobExecution(job, ctx.promise.future)
+		log.info("sent job {} execution msg to {}", job.id, target)
 	}
 
 	private[this] def putWorkData[D, R](workId: Long, job: ManagedJob[R, D])
