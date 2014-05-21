@@ -2,6 +2,7 @@ package org.ninjatasks.utils
 
 import akka.actor.ActorSystem
 import akka.cluster.ClusterEvent.{ReachableMember, UnreachableMember, MemberUp, MemberExited}
+import com.typesafe.config.ConfigFactory
 
 /**
  *
@@ -14,11 +15,13 @@ object ManagementConsts
 	 */
 	val systemName = "ninja"
 
+
 	/**
 	 * Actor system of ninja-tasks.
 	 */
 	val system = ActorSystem(systemName)
 
+	val config = system.settings.config.withFallback(ConfigFactory.defaultReference())
 	val WORKER_MGR_ROLE = "WorkerManager"
 
 	val JOB_DELEGATOR_ROLE = "JobDelegator"

@@ -4,13 +4,13 @@ import akka.actor._
 import scala.collection.mutable
 import org.ninjatasks.work.ManagedJob
 import org.ninjatasks.cluster.TopicAwareActor
-import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX}
+import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX, config}
 import java.util.concurrent.atomic.AtomicLong
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
 
 object JobDelegator
 {
-	val JOB_QUEUE_MAX_LENGTH: Long = 1E5.toLong
+	val JOB_QUEUE_MAX_LENGTH: Long = config.getLong("ninja.delegator.job-queue-length")
 }
 
 /**

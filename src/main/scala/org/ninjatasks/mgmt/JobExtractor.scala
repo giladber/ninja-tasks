@@ -4,6 +4,7 @@ import akka.actor.{ActorRef, Cancellable, Actor, ActorLogging}
 import scala.concurrent.duration._
 import akka.pattern.{ask, pipe, AskTimeoutException}
 import scala.concurrent.ExecutionContext.Implicits.global
+import org.ninjatasks.utils.ManagementConsts
 
 /**
  *
@@ -12,15 +13,19 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class JobExtractor(val workSource: ActorRef, val delegator: ActorRef) extends Actor with ActorLogging
 {
 	var cancelOption: Option[Cancellable] = None
+	val config = ManagementConsts.config
+	val initialDelay = config.getLong("ninja.extractor.initial-delay")
+	val periodicDelay = config.getLong("ninja.extractor.periodic-delay")
+	val capacityRequestTimeout = config.getLong("ninja.extractor.request-timeout")
 
 	def scheduler = context.system.scheduler
 
 	override def preStart() =
 	{
 		cancelOption foreach (c => c.cancel())
-		val cancellable = scheduler.schedule(initialDelay = 0 seconds, interval = 1 second)
+		val cancellable = scheduler.schedule(initialDelay = initialDelay millis, interval = periodicDelay millis)
 		{
-			val f = ask(delegator, JobCapacityRequest)(timeout = 500 millis)
+			val f = ask(delegator, JobCapacityRequest)(timeout = capacityRequestTimeout millis)
 			f map
 				{
 					case JobCapacity(amount) => JobSetRequest(amount)

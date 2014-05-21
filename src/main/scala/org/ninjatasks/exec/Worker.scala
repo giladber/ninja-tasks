@@ -5,13 +5,11 @@ import org.ninjatasks.mgmt.{JobRequest, JobExecution, JobFailure, JobSuccess}
 import scala.util.{Failure, Success, Try}
 
 /**
- *
+ * Actor responsible for performing the actual processing of job objects.
  * Created by Gilad Ber on 4/15/14.
  */
-class Worker extends Actor with ActorLogging
+private[ninjatasks] class Worker extends Actor with ActorLogging
 {
-	private[this] var stop = false
-
 	override def preStart() =
 	{
 		println("Started worker: " + self)
@@ -26,7 +24,6 @@ class Worker extends Actor with ActorLogging
 	override def receive =
 	{
 		case JobExecution(job, future) =>
-			stop = false
 			log.info("beginning execution of job id {}", job.id)
 
 			Try(job.withFuture(future).execute()) match {

@@ -1,18 +1,26 @@
 package org.ninjatasks.cluster
 
 import org.ninjatasks.mgmt.{ComponentStartedAck, ComponentStarted}
+import org.ninjatasks.utils.ManagementConsts.config
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
 import scala.concurrent.duration._
 
 /**
- * Manages relative nodes in the cluster
+ *
+ *
  * Created by Gilad Ber on 4/18/14.
  */
 abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extends TopicReceivingActor(receiveTopic)
 {
 	//TODO should lifecycle methods be called async? if so, change docs to reflect that
 
-	protected var replyReceived = false
+	private[this] var replyReceived = false
+	val subscribeInitialDelay = config.getLong("ninja.registration.subscription-req-initial-delay")
+	val selfRequestDelayDelta = config.getLong("ninja.registration.subscription-self-req-delta")
+	val subscribeRetryDelay = config.getLong("ninja.registration.subscription-retry-delay")
+
+	val initialSelfRequestDelay = subscribeInitialDelay + selfRequestDelayDelta
+	val selfRequestRetryDelay = subscribeRetryDelay + selfRequestDelayDelta
 
 	import context.dispatcher
 
@@ -22,11 +30,11 @@ abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extend
 
 	override def postSubscribe(): Unit =
 	{
-		scheduler.scheduleOnce(5 seconds)
+		scheduler.scheduleOnce(subscribeInitialDelay millis)
 		{
 			publish(ComponentStarted)
 		}
-		scheduler.scheduleOnce(6 seconds)
+		scheduler.scheduleOnce(initialSelfRequestDelay millis)
 		{
 			self ! ComponentStarted
 		}
@@ -54,12 +62,12 @@ abstract class TopicAwareActor(receiveTopic: String, targetTopic: String) extend
 			}
 			else if (!replyReceived)
 			{
-				scheduler.scheduleOnce(2 seconds)
+				scheduler.scheduleOnce(subscribeRetryDelay millis)
 				{
 					log.debug("Published ack request from {}", self)
 					publish(ComponentStarted)
 				}
-				scheduler.scheduleOnce(3 seconds)
+				scheduler.scheduleOnce(selfRequestRetryDelay millis)
 				{
 					self ! ComponentStarted
 				}

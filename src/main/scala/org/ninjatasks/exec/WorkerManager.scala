@@ -9,14 +9,24 @@ import org.ninjatasks.mgmt.WorkDataMessage
 import akka.actor.SupervisorStrategy.{Resume, Stop, Restart, Escalate}
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import org.ninjatasks.utils.ManagementConsts
 
 object WorkerManager
 {
-	val WORKER_NUM = System.getProperty("workerNum", "-1") match
-	{
-		case "-1" => Runtime.getRuntime.availableProcessors()
-		case _ => System.getProperty("workerNum").toInt
+	import ManagementConsts.config
+
+	val workersAmountPath: String = "ninja.workers.amount"
+	val WORKER_NUM = if (config.hasPath(workersAmountPath)) {
+		config.getInt(workersAmountPath)
+	} else {
+		Runtime.getRuntime.availableProcessors()
 	}
+
+//	val WORKER_NUM = System.getProperty("workerNum", "-1") match
+//	{
+//		case "-1" => Runtime.getRuntime.availableProcessors()
+//		case _ => System.getProperty("workerNum").toInt
+//	}
 }
 
 
@@ -55,6 +65,13 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	 */
 	private[this] val contexts = new mutable.HashMap[ActorRef, WorkerContext]
 
+	/**
+	 * Before starting this worker, we must creats its child actors.
+	 * The number of child actors is determined either by configuration, or, as default value,
+	 * by the number of available processors as returned by Runtime.availableProcessors
+	 * Upon starting each child actor, a job request is sent on its behalf to this actor,
+	 * seeing as it will have no jobs to process.
+	 */
 	override def preStart() =
 	{
 		super.preStart()
@@ -73,7 +90,7 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	}
 
 	override val supervisorStrategy: SupervisorStrategy = OneForOneStrategy(maxNrOfRetries = 2,
-																																					withinTimeRange = 10 seconds)
+																																					withinTimeRange = 2 seconds)
 	{
 		case _: ActorInitializationException => Stop
 		case _: ActorKilledException => Restart
