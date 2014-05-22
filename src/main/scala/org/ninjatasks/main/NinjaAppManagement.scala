@@ -1,17 +1,17 @@
 package org.ninjatasks.main
 
-import akka.actor.{ActorRef, ActorLogging, Actor, Props}
+import akka.actor.{ActorLogging, Actor, Props}
 import akka.contrib.pattern.DistributedPubSubExtension
 import org.ninjatasks.JobManagementSubsystem
 import org.ninjatasks.utils.ManagementConsts
 import org.ninjatasks.examples.SleepWork
 import org.ninjatasks.utils.ManagementConsts._
-import org.ninjatasks.mgmt.WorkCancelled
-import org.ninjatasks.mgmt.WorkStarted
-import akka.contrib.pattern.DistributedPubSubMediator.Subscribe
-import org.ninjatasks.mgmt.WorkFinished
-import org.ninjatasks.mgmt.WorkFailed
+import akka.contrib.pattern.DistributedPubSubMediator.{SubscribeAck, Subscribe}
 import org.ninjatasks.work.Work
+import scala.concurrent.Future
+import scala.util.{Failure, Success}
+import scala.concurrent.duration._
+import scala.language.postfixOps
 
 /**
  *
@@ -22,23 +22,28 @@ object NinjaAppManagement
 	import org.ninjatasks.utils.ManagementConsts.system
 	def main(args: Array[String])
 	{
-		val mgr = JobManagementSubsystem.start()
-		Thread.sleep(10000)
+		JobManagementSubsystem.start()
 		val work = new SleepWork(555, 4, 3)
-		system.actorOf(Props(classOf[WorkReportingActor], mgr, work), "reporter")
+		val reporter = system.actorOf(Props(classOf[WorkReportingActor[Int, Unit, Int]], work), "reporter")
+		Thread.sleep(10000)
+		reporter ! "send"
 	}
 }
 
-class WorkReportingActor(mgr: ActorRef, work: Work[_, _, _]) extends Actor with ActorLogging
+class WorkReportingActor[T, D, R](work: Work[T, D, R]) extends Actor with ActorLogging
 {
-	val mediator = DistributedPubSubExtension(system).mediator
-	mediator ! Subscribe(ManagementConsts.WORK_TOPIC_PREFIX + work.id, self)
-	mgr ! work
+
+	def send(): Unit = JobManagementSubsystem.executor ! (work, 2 seconds)
+
+	import scala.concurrent.ExecutionContext.Implicits.global
 
 	override def receive: Receive = {
-		case WorkStarted(id) => log.info("Work {} has started executing!", id)
-		case WorkFinished(id, res) => log.info("Work {} finished with result {}", id, res)
-		case WorkCancelled(id) => log.info("Work {} has been successfully cancelled", id)
-		case WorkFailed(id, reason) => log.info("Work {} has failed due to exception: {}", id, reason.getMessage)
+		case f: Future[R] => f.andThen
+		{
+			case Success(res) => log.info("received result of work {}: = {}", work.id, res)
+			case Failure(ex) => log.error(ex, "error during work execution")
+		}
+
+		case "send" => send()
 	}
 }
