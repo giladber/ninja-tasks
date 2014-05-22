@@ -1,10 +1,12 @@
 package org.ninjatasks.mgmt
 
 import akka.actor.{ActorRef, Cancellable, Actor, ActorLogging}
+
 import scala.concurrent.duration._
 import akka.pattern.{ask, pipe, AskTimeoutException}
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.ninjatasks.utils.ManagementConsts
+import scala.language.postfixOps
 
 /**
  *

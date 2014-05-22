@@ -1,7 +1,6 @@
 package org.ninjatasks.utils
 
 import akka.actor.ActorSystem
-import akka.cluster.ClusterEvent.{ReachableMember, UnreachableMember, MemberUp, MemberExited}
 import com.typesafe.config.ConfigFactory
 
 /**
@@ -21,7 +20,12 @@ object ManagementConsts
 	 */
 	val system = ActorSystem(systemName)
 
+	/**
+	 * Ninja-tasks lib config.
+	 * Backed by the contained reference.conf file.
+	 */
 	val config = system.settings.config.withFallback(ConfigFactory.defaultReference())
+
 	val WORKER_MGR_ROLE = "WorkerManager"
 
 	val JOB_DELEGATOR_ROLE = "JobDelegator"
@@ -33,6 +37,8 @@ object ManagementConsts
 	val WORK_MGR_ACTOR_NAME = "work_mgr"
 
 	val JOB_EXTRACTOR_ACTOR_NAME = "job_extractor"
+
+	val WORK_EXECUTOR_ACTOR_NAME = "work_executor"
 
 	/**
 	 * Name of the topic through which messages are sent to job managers.

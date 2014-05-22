@@ -11,6 +11,8 @@ import akka.contrib.pattern.DistributedPubSubMediator.Publish
 object JobDelegator
 {
 	val JOB_QUEUE_MAX_LENGTH: Long = config.getLong("ninja.delegator.job-queue-length")
+
+
 }
 
 /**
@@ -99,11 +101,21 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 
 		case wcr: WorkCancelRequest =>
 			log.info("Received cancel message for work id {}", wcr.workId)
+			filterJobQueue(wcr.workId)
 			publish(wcr)
 
 		case msg =>
 			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)
 	}
+
+	private[this] def filterJobQueue(workId: Long)
+	{
+		val tempQueue = mutable.PriorityQueue[ManagedJob[_, _]]()
+		tempQueue ++= jobQueue
+		jobQueue.clear()
+		tempQueue filter (job => job.workId != workId) foreach jobQueue.+=
+	}
+
 
 	/**
 	 * The purpose of this method is to reduce clutter for sending job messages to workers.

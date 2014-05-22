@@ -93,9 +93,9 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	private[this] def removeWork(workId: Long, msg: WorkResult) =
 	{
 		filterWorkQueue(workId)
-		mediator ! Unsubscribe(JOBS_TOPIC_PREFIX + workId, self)
 		mediator ! Publish(WORK_TOPIC_PREFIX + workId, msg)
 		mediator ! Publish(WORK_TOPIC_NAME, WorkDataRemoval(workId))
+		mediator ! Unsubscribe(JOBS_TOPIC_PREFIX + workId, self)
 		workData -= workId
 	}
 

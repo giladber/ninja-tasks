@@ -21,12 +21,6 @@ object WorkerManager
 	} else {
 		Runtime.getRuntime.availableProcessors()
 	}
-
-//	val WORKER_NUM = System.getProperty("workerNum", "-1") match
-//	{
-//		case "-1" => Runtime.getRuntime.availableProcessors()
-//		case _ => System.getProperty("workerNum").toInt
-//	}
 }
 
 
