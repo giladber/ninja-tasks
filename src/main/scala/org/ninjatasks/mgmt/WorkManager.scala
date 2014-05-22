@@ -88,7 +88,10 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	}
 
 	private[this] def receiveResult[T](work: ManagedWork[T, _, _], js: JobSuccess[_]) =
+	{
+		println(s"updating work $work with result $js")
 		work.update(js.res.asInstanceOf[T])
+	}
 
 	private[this] def removeWork(workId: Long, msg: WorkResult) =
 	{
@@ -105,7 +108,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		val tempWorkQueue = mutable.PriorityQueue[JobSetIterator[_, _]]()
 		tempWorkQueue ++= pendingWork
 		pendingWork.clear()
-		tempWorkQueue filter (it => it.producer.work.id != workId) foreach pendingWork.+=
+		tempWorkQueue filter (it => it.producer.workId != workId) foreach pendingWork.+=
 	}
 
 	import scala.collection.immutable

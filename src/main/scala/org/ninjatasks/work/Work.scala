@@ -44,7 +44,7 @@ trait Work[T, D, R]
 	/**
 	 * Job objects factory, for lazy creation of jobs when required and when
 	 * processing has become possible.
-	 * @return A specialized instance of a JobCreator for this work object.
+	 * @return A user-defined implementation of JobCreator for this work object.
 	 */
 	def creator: JobCreator[T, D]
 
@@ -69,7 +69,7 @@ trait Work[T, D, R]
 	val combine: (R, T) => R
 
 	/**
-	 * The initial result of the computation, which will be used as the first operand of the reduction.
+	 * The initial result of the computation.
 	 */
 	val initialResult: R
 
@@ -87,6 +87,9 @@ trait Work[T, D, R]
 	 * On the other hand, it any data that is relevant to all jobs should be contained in this object
 	 * and not in other job objects, in order to minimize serialization costs, to not incur
 	 * that cost for every job that is sent.
+	 *
+	 * It should be noted that this object will most likely be shared between multiple job objects,
+	 * so it is essential that either it is thread-safe, or that all jobs access it in a synchronized fashion.
 	 */
 	val data: D
 
@@ -122,35 +125,67 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 	 * @tparam U type of the new intermediate results
 	 * @return A new work object which maps the results of job objects by the mapping function.
 	 */
-	def mapJobResults[U](f: T => U, combiner: (R, U) => R): Work[U, D, R]
+	def mapJobResults[U](f: T => U, combiner: (R, U) => R): Work[U, D, R] = {
+		val newCreator = this.creator.mapJobs(f)
+		new AbstractWork[U, D, R](combiner, this.id, this.priority, this.initialResult, this.data, this.jobNum, newCreator) {}
+	}
 
 	/**
-	 *
-	 * @param f
-	 * @tparam U
-	 * @return
+	 * Map the result of this work object to another
+	 * @param f mapping function
+	 * @tparam U target result type
+	 * @return A new work instance with its result mapped by the given function
 	 */
 	def map[U](f: R => U): Work[T, D, U]
 
 	/**
-	 *
-	 * @param other
-	 * @tparam T2
-	 * @tparam D2
-	 * @tparam R2
-	 * @return
+	 * Merges this work object and another work object, such that the result of the new work object is the
+	 * pair consisting of both work objects' results, and such that its underlying jobs are this work's jobs
+	 * along with the input work's jobs.
+	 * @param other Work object to merge this work with.
+	 * @tparam T2 Type of other work's job results.
+	 * @tparam D2 Type of other work's data.
+	 * @tparam R2 Type of other work's result
+	 * @return A new work object which includes all jobs of the two work objects and which outputs a result of their
+	 *         two results combined.
 	 */
 	def merge[T2, D2, R2](other: Work[T2, D2, R2]): Work[Either[T, T2], Either[D, D2], (R, R2)]
 
-	/**
-	 *
-	 * @param other
-	 * @tparam T2
-	 * @tparam D2
-	 * @tparam R2
-	 * @return
-	 */
-	def pair[T2, D2, R2](other: Work[T2, D2, R2]): Work[(T, T2), (D, D2), (R, R2)]
+}
+
+/**
+ * Base abstract work class for use in the functional operations of RichWork.
+ * For information on parameters, see Work's documentation
+ * @param combine combine function
+ * @param id unique work id
+ * @param priority work priority
+ * @param initialResult initial work result, before reduction
+ * @param data work data
+ * @param jobNum number of jobs that require processing
+ * @tparam T The type of results produced by processing the underlying jobs.
+ * @tparam D The type of work-related data which is supplied to the job objects.
+ * @tparam R The type of the final result obtained by the computation of this work.
+ */
+abstract class AbstractWork[T, D, R](val combine: (R, T) => R,
+																		 val id: Long,
+																		 val priority: Int,
+																		 val initialResult: R,
+																		 val data: D,
+																		 val jobNum: Long,
+																		 jobCreator: => JobCreator[T, D])
+																		 		extends Work[T, D, R]
+																		 		with Serializable
+{
+
+	override def creator: JobCreator[T, D] = jobCreator
+
+	def this(work: Work[T, D, R]) = this(work.combine,
+																			 work.id,
+																			 work.priority,
+																			 work.initialResult,
+																			 work.data,
+																			 work.jobNum,
+																			 work.creator)
 }
 
 object ManagedWork {

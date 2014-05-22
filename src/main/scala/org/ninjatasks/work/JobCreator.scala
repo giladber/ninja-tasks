@@ -1,6 +1,7 @@
 package org.ninjatasks.work
 
 import scala.collection.immutable
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * General interface for a factory which batch-creates job objects on demand.
@@ -8,9 +9,13 @@ import scala.collection.immutable
  * however it can also be used for any work object with varying sizes of underlying jobs.
  * Created by Gilad Ber on 4/21/14.
  */
-trait JobCreator[T, D]
+trait JobCreator[T, D] extends Serializable
 {
-	val work: Work[T, D, _]
+	self =>
+
+	val workId: Long
+	val priority: Int
+	val jobNum: Long
 
 	/**
 	 * Returns a set of un-traversed jobs consisting of at most amount jobs
@@ -26,13 +31,35 @@ trait JobCreator[T, D]
 	 * @return remaining number of jobs that can possibly be created
 	 */
 	def remaining: Long
+
+	def mapJobs[U](f: T => U) =
+	{
+		new AbstractJobCreator[U, D](workId, priority, jobNum)
+		{
+			override def create(amount: Long): immutable.Seq[ExecutableJob[U, D]] = {
+				self.create(amount).map(job => new ExecutableJob[U, D] with Serializable {
+					override val id: Long = job.id
+					override val workId: Long = job.workId
+					override var workData: D = job.workData
+					override val priority: Int = job.priority
+					override val shouldStop: AtomicBoolean = job.shouldStop
+
+					override def execute(): U = f(job.execute())
+				})
+			}
+		}
+	}
 }
 
-abstract class AbstractJobCreator[T, D](val work: Work[T, D, _]) extends JobCreator[T, D]
+abstract class AbstractJobCreator[T, D](val workId: Long, val priority: Int, val jobNum: Long) extends JobCreator[T, D]
 {
+
+	def this(work: Work[T, D, _]) = this(work.id, work.priority, work.jobNum)
+	def this(creator: JobCreator[_, _]) = this(creator.workId, creator.priority, creator.jobNum)
+
 	protected var produced: Long = 0
 
-	override def remaining = work.jobNum - produced
+	override def remaining = jobNum - produced
 
 	/**
 	 * Updated the number of already produced jobs by this creator.
@@ -64,7 +91,7 @@ class JobSetIterator[T, D](val producer: JobCreator[T, D], val serial: Long)
 
 	def next(amount: Long): immutable.Seq[ManagedJob[T, D]] = producer.create(amount).map(ManagedJob(_))
 
-	def priority: Int = producer.work.priority
+	def priority: Int = producer.priority
 
 	override def compare(that: JobSetIterator[_, _]) =
 		this.priority - that.priority match

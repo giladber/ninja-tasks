@@ -7,7 +7,7 @@ import scala.collection.immutable
  * Example sleep work object consisting of sleep jobs.
  * Created by Gilad Ber on 5/18/2014.
  */
-class SleepWork(val id: Long, val jobNum: Long, val priority: Int) extends Work[Int, Unit, Int]
+class SleepWork(val id: Long, val jobNum: Long, val priority: Int) extends RichWork[Int, Unit, Int]
 {
 	override val data: Unit = ()
 
