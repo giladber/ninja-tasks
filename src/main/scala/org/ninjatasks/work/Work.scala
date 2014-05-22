@@ -105,8 +105,58 @@ trait Work[T, D, R]
 	val jobNum: Long
 }
 
+/**
+ * An extension to the basic work trait, with additional functional operations applicable to its underlying elements.
+ * All methods in this class do not change any underlying state of the work object, instead creating a new one.
+ * @tparam T The type of results produced by processing the underlying jobs.
+ * @tparam D The type of work-related data which is supplied to the job objects.
+ * @tparam R The type of the final result obtained by the computation of this work.
+ */
+trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
+{
+	/**
+	 * Returns a new work object with the given combiner, which is invoked on the results of the
+	 * work's job results after the result is mapped by f.
+	 * @param f mapping function
+	 * @param combiner new combiner
+	 * @tparam U type of the new intermediate results
+	 * @return A new work object which maps the results of job objects by the mapping function.
+	 */
+	def mapJobResults[U](f: T => U, combiner: (R, U) => R): Work[U, D, R]
+
+	/**
+	 *
+	 * @param f
+	 * @tparam U
+	 * @return
+	 */
+	def map[U](f: R => U): Work[T, D, U]
+
+	/**
+	 *
+	 * @param other
+	 * @tparam T2
+	 * @tparam D2
+	 * @tparam R2
+	 * @return
+	 */
+	def merge[T2, D2, R2](other: Work[T2, D2, R2]): Work[Either[T, T2], Either[D, D2], (R, R2)]
+
+	/**
+	 *
+	 * @param other
+	 * @tparam T2
+	 * @tparam D2
+	 * @tparam R2
+	 * @return
+	 */
+	def pair[T2, D2, R2](other: Work[T2, D2, R2]): Work[(T, T2), (D, D2), (R, R2)]
+}
+
 object ManagedWork {
+
 	def apply[T, D, R](work: Work[T, D, R]): ManagedWork[T, D, R] = new ManagedWork(work)
+
 }
 
 /**
@@ -145,3 +195,5 @@ private[ninjatasks] class ManagedWork[T, D, R](val work: Work[T, D, R]) extends 
 	require(data != null)
 	require(jobNum > 0)
 }
+
+
