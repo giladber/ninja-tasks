@@ -8,6 +8,7 @@ import scala.concurrent.Future
 import scala.util.{Failure, Success}
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import java.util.concurrent.ThreadLocalRandom
 
 /**
  *
@@ -19,13 +20,9 @@ object NinjaAppManagement
 	def main(args: Array[String])
 	{
 		JobManagementSubsystem.start()
-		val c: (Int, Int) => Int = (x, y) => {
-			println(s"combining: $x, $y")
-			val res = x + y
-			println(s"result is $res")
-			res
-		}
-		val work = new SleepWork(555, 4, 3).mapJobResults(x => 2*x, c)
+		val c: (Int, Int) => Int = (x, y) => x + y
+//		val work = new SleepWork(555, 4, 3).mapJobResults(x => 2*x, c)
+		val work = new SleepWork(555, 4, 3).map(x => "My name is " + x).map(s => s + " x " + ThreadLocalRandom.current().nextDouble().toString)
 		val reporter = system.actorOf(Props(classOf[WorkReportingActor[Int, Unit, Int]], work), "reporter")
 		Thread.sleep(10000)
 		reporter ! "send"

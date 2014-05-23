@@ -100,10 +100,13 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 
 	def acceptWork(work: Work[_, _, _])
 	{
-		val wrapped = ManagedWork(work)
+		val wrapped = work match {
+			case mw: ManagedWork[_, _, _] => mw
+			case other => ManagedWork(other)
+		}
+//		val wrapped = ManagedWork(work)
 		workData.put(wrapped.id, (wrapped, wrapped.jobNum))
 		pendingWork += JobSetIterator(wrapped.creator, serialProducer.getAndIncrement)
-//		mediator ! Subscribe(JOBS_TOPIC_PREFIX + wrapped.id, self)
 		mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(wrapped.id, wrapped.data))
 		sender() ! WorkStarted(wrapped.id)
 		log.info("received work with id {}, bare work: {}, managed: {}", wrapped.id, work, wrapped)
@@ -118,10 +121,8 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	private[this] def removeWork(workId: Long, msg: WorkResult) =
 	{
 		filterWorkQueue(workId)
-//		mediator ! Publish(WORK_TOPIC_PREFIX + workId, msg)
 		lookupBus.publish(ManagementNotification(WORK_TOPIC_PREFIX, msg))
 		mediator ! Publish(WORK_TOPIC_NAME, WorkDataRemoval(workId))
-//		mediator ! Unsubscribe(JOBS_TOPIC_PREFIX + workId, self)
 		workData -= workId
 	}
 

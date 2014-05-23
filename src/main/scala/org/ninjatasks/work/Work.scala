@@ -33,8 +33,6 @@ package org.ninjatasks.work
  * for the creator function, however that will only be called once per work submission, so it has less potential
  * to become a bottleneck.
  *
- * The priority
- *
  * @tparam T The type of results produced by processing the underlying jobs.
  * @tparam D The type of work-related data which is supplied to the job objects.
  * @tparam R The type of the final result obtained by the computation of this work.
@@ -117,6 +115,7 @@ trait Work[T, D, R]
  */
 trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 {
+	self =>
 	/**
 	 * Returns a new work object with the given combiner, which is invoked on the results of the
 	 * work's job results after the result is mapped by f.
@@ -131,15 +130,18 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 			with RichWork[U, D, R] {}
 	}
 
+
 	/**
 	 * Map the result of this work object to another
 	 * @param f mapping function
 	 * @tparam U target result type
 	 * @return A new work instance with its result mapped by the given function
 	 */
-	def map[U](f: R => U): Work[T, D, U] = {
-		null
+	def map[U](f: R => U): RichWork[T, D, U] = {
+		new MappedWork[T, D, R, U](self, f)
 	}
+
+
 
 	/**
 	 * Merges this work object and another work object, such that the result of the new work object is the
@@ -197,39 +199,57 @@ abstract class AbstractWork[T, D, R](override val combine: (R, T) => R,
 
 object ManagedWork {
 
-	def apply[T, D, R](work: Work[T, D, R]): ManagedWork[T, D, R] = new ManagedWork(work)
+	def apply[T, D, R](work: Work[T, D, R]): ManagedWork[T, D, R] = new ManagedWork(work.combine,
+																																									work.id,
+																																									work.priority,
+																																									work.initialResult,
+																																									work.data,
+																																									work.jobNum,
+																																									work.creator)
 
 }
 
 /**
  * A wrapper class to the Work trait, adding the result field which is not required to be implemented by the user.
- * @param work Underlying user-supplied work object
  * @tparam T The type of results produced by processing the underlying jobs.
  * @tparam D The type of work-related data which is supplied to the job objects.
  * @tparam R The type of the final result obtained by the computation of this work.
  */
-private[ninjatasks] class ManagedWork[T, D, R](val work: Work[T, D, R]) extends Work[T, D, R] with Serializable {
+private[ninjatasks] class ManagedWork[T, D, R](override val combine: (R, T) => R,
+																							 override val id: Long,
+																							 override val priority: Int,
+																							 override val initialResult: R,
+																							 override val data: D,
+																							 override val jobNum: Long,
+																							 jobCreator: => JobCreator[T, D])
+																									extends Work[T, D, R] with Serializable {
 
-	require(work != null)
-
-	override def creator = work.creator
-
-	override val combine: (R, T) => R = work.combine
-
-	override val initialResult: R = work.initialResult
-
-	override val id: Long = work.id
-
-	override val data: D = work.data
-
-	override val priority: Int = work.priority
-
-	override val jobNum: Long = work.jobNum
+	override def creator = jobCreator
+//
+//	override val combine: (R, T) => R = work.combine
+//
+//	override val initialResult: R = work.initialResult
+//
+//	override val id: Long = work.id
+//
+//	override val data: D = work.data
+//
+//	override val priority: Int = work.priority
+//
+//	override val jobNum: Long = work.jobNum
 
 	var result: R = initialResult
 
-	def update(additionalResult: T) =
+	/**
+	 * Updates the intermediate result of the work's computation and returns it
+	 * @param additionalResult new job value to compute result with
+	 * @return the intermediate result
+	 */
+	def update(additionalResult: T): R =
+	{
 		result = combine(result, additionalResult)
+		result
+	}
 
 	require(creator != null)
 	require(combine != null)
@@ -238,4 +258,25 @@ private[ninjatasks] class ManagedWork[T, D, R](val work: Work[T, D, R]) extends 
 	require(jobNum > 0)
 }
 
+class MappedWork[T, D, R, U](work: Work[T, D, R], f: R => U) extends ManagedWork[T, D, U](id = work.id,
+																																							 combine = (u, t) => u,
+																																							 priority = work.priority,
+																																							 initialResult = f(work.initialResult),
+																																							 data = work.data,
+																																							 jobNum = work.jobNum,
+																																							 jobCreator = work.creator) with RichWork[T, D, U]
+{
 
+	val managed = work match {
+		case mw: ManagedWork[T, D, R] => mw
+		case other => ManagedWork(other)
+	}
+	var intermediateResult: R = managed.initialResult
+
+	override def update(additionalResult: T) =
+	{
+		intermediateResult = managed.update(additionalResult)
+		result = f(intermediateResult)
+		result
+	}
+}

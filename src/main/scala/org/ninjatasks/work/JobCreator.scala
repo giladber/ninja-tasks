@@ -34,7 +34,7 @@ trait JobCreator[T, D] extends Serializable
 
 	def mapJobs[U](f: T => U) =
 	{
-		new AbstractJobCreator[U, D](workId, priority, jobNum)
+		new WrappedJobCreator[U, D](self)
 		{
 			override def create(amount: Long): immutable.Seq[ExecutableJob[U, D]] = {
 				self.create(amount).map(job => new ExecutableJob[U, D] with Serializable {
@@ -68,6 +68,13 @@ abstract class AbstractJobCreator[T, D](val workId: Long, val priority: Int, val
 	 * @param created number of additionally created jobs.
 	 */
 	protected def updateProduced(created: Long): Unit = produced = produced + created
+}
+
+abstract class WrappedJobCreator[T, D](val base: JobCreator[_, D]) extends AbstractJobCreator[T, D](base) {
+	override def remaining = base.remaining
+	override val workId: Long = base.workId
+	override val priority: Int = base.priority
+	override val jobNum: Long = base.jobNum
 }
 
 object JobSetIterator
