@@ -24,7 +24,7 @@ object NinjaAppManagement
 //		val work = new SleepWork(555, 4, 3).mapJobResults(x => 2*x, c)
 		val work = new SleepWork(555, 4, 3).map(x => "My name is " + x).map(s => s + " x " + ThreadLocalRandom.current().nextDouble().toString)
 		val reporter = system.actorOf(Props(classOf[WorkReportingActor[Int, Unit, Int]], work), "reporter")
-		Thread.sleep(10000)
+//		Thread.sleep(10000)
 		reporter ! "send"
 	}
 }

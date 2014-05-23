@@ -21,7 +21,7 @@ object JobDelegator
  * Delegates work to remote worker managers
  * Created by Gilad Ber on 4/16/14.
  */
-class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targetTopic = WORK_TOPIC_NAME)
+class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targetTopic = WORK_TOPIC_NAME) with Stash
 {
 
 	import JobDelegator._
@@ -50,12 +50,14 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 
 	override def receive =
 	{
-		super.receive orElse myReceive
+		super.receive orElse preRegisterReceive
 	}
 
 	override def postRegister() =
 	{
-		println("Registration successful")
+		context.become(postRegisterReceive)
+		unstashAll()
+		log.info("Registration successful, unstashed messages")
 //		println("Sending job messages")
 //		jobRequestQueue foreach (ref => self ! JobMessage(SleepJob(time = 5000, id = 1, priority = 5, workId = 1010100)))
 //		context.system.scheduler.scheduleOnce(3 seconds)
@@ -95,11 +97,9 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 		case res: JobResult =>
 			log.info("received job result: {} for job id {}",res, res.jobId)
 			lookupBus.publish(ManagementNotification(JOBS_TOPIC_PREFIX, res))
-//			mediator ! Publish(JOBS_TOPIC_PREFIX + res.workId, res)
 
 		case JobCapacityRequest =>
 			val answer = availableTaskSpace
-			log.debug("sending available task space {}", answer)
 			sender() ! JobCapacity(answer)
 
 		case wcr: WorkCancelRequest =>
@@ -110,6 +110,15 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 		case msg =>
 			throw new IllegalArgumentException("Unknown message type received: " + msg + " from sender " + sender)
 	}
+
+	private[this] def preRegisterReceive: Receive = {
+		case JobCapacityRequest => sender() ! JobCapacity(availableTaskSpace)
+		case msg =>
+			log.info(s"Received message before registration, stashing: $msg")
+			stash()
+	}
+
+	private[this] def postRegisterReceive: Receive = super.receive orElse myReceive
 
 	private[this] def filterJobQueue(workId: Long)
 	{

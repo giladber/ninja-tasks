@@ -222,22 +222,16 @@ private[ninjatasks] class ManagedWork[T, D, R](override val combine: (R, T) => R
 																							 override val data: D,
 																							 override val jobNum: Long,
 																							 jobCreator: => JobCreator[T, D])
-																									extends Work[T, D, R] with Serializable {
+																									extends Work[T, D, R] with Serializable
+{
+
+	require(creator != null)
+	require(combine != null)
+	require(initialResult != null)
+	require(data != null)
+	require(jobNum > 0)
 
 	override def creator = jobCreator
-//
-//	override val combine: (R, T) => R = work.combine
-//
-//	override val initialResult: R = work.initialResult
-//
-//	override val id: Long = work.id
-//
-//	override val data: D = work.data
-//
-//	override val priority: Int = work.priority
-//
-//	override val jobNum: Long = work.jobNum
-
 	var result: R = initialResult
 
 	/**
@@ -250,12 +244,6 @@ private[ninjatasks] class ManagedWork[T, D, R](override val combine: (R, T) => R
 		result = combine(result, additionalResult)
 		result
 	}
-
-	require(creator != null)
-	require(combine != null)
-	require(initialResult != null)
-	require(data != null)
-	require(jobNum > 0)
 }
 
 class MappedWork[T, D, R, U](work: Work[T, D, R], f: R => U) extends ManagedWork[T, D, U](id = work.id,
