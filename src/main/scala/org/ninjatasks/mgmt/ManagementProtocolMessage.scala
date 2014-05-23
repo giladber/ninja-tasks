@@ -17,7 +17,7 @@ sealed abstract class JobResult(val workId: Long, val jobId: Long) extends Manag
 /**
  * Father class of all work result type classes.
  */
-sealed trait WorkResult extends ManagementProtocolMessage
+sealed abstract class WorkResult(val workId: Long) extends ManagementProtocolMessage
 
 
 import scala.collection.immutable
@@ -143,11 +143,11 @@ private[ninjatasks] case object ComponentStartedAck extends ManagementProtocolMe
 private[ninjatasks] case class WorkStarted(workId: Long) extends ManagementProtocolMessage
 
 /**
- * A notification that a submitted work object could not be executed due to queue size constraints,
- * and may be sent for processing later on.
+ * A notification that a submitted work object could not be executed due to capacity constraints,
+ * and should be resent for processing later on.
  * @param workId Id of the work which was rejected.
  */
-private[ninjatasks] case class WorkRejected(workId: Long) extends ManagementProtocolMessage
+case class WorkRejected(override val workId: Long) extends WorkResult(workId)
 
 /**
  * A notification that the execution of a work request has finished, along with its result.
@@ -155,17 +155,17 @@ private[ninjatasks] case class WorkRejected(workId: Long) extends ManagementProt
  * @param result Result of the execution.
  * @tparam R Type of the result object.
  */
-case class WorkFinished[R](workId: Long, result: R) extends WorkResult
+case class WorkFinished[R](override val workId: Long, result: R) extends WorkResult(workId)
 
 /**
  * A notification that the execution of a work request has failed, along with its reason.
  * @param workId ID of the failed work.
  * @param reason Reason for failure.
  */
-case class WorkFailed(workId: Long, reason: Throwable) extends WorkResult
+case class WorkFailed(override val workId: Long, reason: Throwable) extends WorkResult(workId)
 
 /**
  * A notification that the execution of a work request has been cancelled, as per request by a client.
  * @param workId The ID of the cancelled work.
  */
-case class WorkCancelled(workId: Long) extends WorkResult
+case class WorkCancelled(override val workId: Long) extends WorkResult(workId)

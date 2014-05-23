@@ -73,16 +73,21 @@ class WorkExecutor extends Actor with ActorLogging
 	private[this] val cancels = mutable.Map[Long, Cancellable]()
 	//TODO instead of failing the promise on any non-success case, we should encapsulate the result within an Either class.
 	private[this] val promises = mutable.Map[Long, Promise[_ <: Any]]()
-//	private[this] val mediator = DistributedPubSubExtension(system).mediator
 
-	private[this] type workTO = (Work[_, _, _], FiniteDuration)
+	private[this] type WorkAndTimeout = (Work[_, _, _], FiniteDuration)
 
-	lookupBus.subscribe(self, ManagementConsts.WORK_TOPIC_PREFIX)
+	override def preStart() {
+		lookupBus.subscribe(self, ManagementConsts.WORK_TOPIC_PREFIX)
+	}
+
+	override def postStop() {
+		lookupBus.unsubscribe(self)
+	}
 
 	override def receive: Receive =
 	{
 
-		case workWithTimeout: workTO =>
+		case workWithTimeout: WorkAndTimeout =>
 			log.info("Received work {} with timeout {}", workWithTimeout._1.id, workWithTimeout._2)
 			val future = send(workWithTimeout._1)(workWithTimeout._2)
 			sender() ! future
@@ -92,16 +97,8 @@ class WorkExecutor extends Actor with ActorLogging
 			cancelWork(id)
 
 		case res: WorkResult =>
-			log.info("received work result")
-			acceptWork(res)
-
-		case WorkRejected(id) =>
-			log.info("Work {} has been rejected, cancelling", id)
-			cancelWork(id)
-
-		case UnsubscribeAck(from) => log.info("Received unsubscribe ack from {}", from)
-
-		case SubscribeAck(to) => log.info("Received subscribe ack to {}", to)
+			log.debug("received work result")
+			acceptResult(res)
 	}
 
 	private[this] def cancelWork(id: Long): Unit =
@@ -111,33 +108,32 @@ class WorkExecutor extends Actor with ActorLogging
 		workManager ! WorkCancelRequest(id)
 	}
 
-	private[this] def acceptWork(result: WorkResult): Unit =
+	private[this] def acceptResult(result: WorkResult): Unit =
 	{
-		val resId = result match
+		result match
 		{
 			case WorkFinished(id, res) =>
 				def applyResult[T: ClassTag](p: Promise[T]): Unit = p.success(res.asInstanceOf[T])
 				promises.get(id) foreach (p => applyResult(p))
-				id
 
 			case WorkCancelled(wId) =>
 				promises.get(wId) foreach (p => p.failure(WorkCancelledException(wId)))
-				wId
 
 			case WorkFailed(wId, reason) =>
 				promises.get(wId) foreach (p => p.failure(reason))
-				wId
+
+			case WorkRejected(wId) =>
+				promises.get(wId) foreach (p => p.failure(WorkCancelledException(wId)))
 		}
 
-		cancels.get(resId) foreach (_.cancel())
-		clearWorkData(resId)
+		cancels.get(result.workId) foreach (_.cancel())
+		clearWorkData(result.workId)
 	}
 
 	private[this] def clearWorkData(id: Long): Unit =
 	{
 		cancels -= id
 		promises -= id
-//		mediator ! Unsubscribe(ManagementConsts.WORK_TOPIC_PREFIX + id, self)
 	}
 
 
@@ -145,19 +141,18 @@ class WorkExecutor extends Actor with ActorLogging
 	{
 		def scheduler = context.system.scheduler
 		val id = work.id
-//		mediator ! Subscribe(ManagementConsts.WORK_TOPIC_PREFIX + id, self)
 		workManager ! work
-		log.info("sent work {} to manager", id)
+		log.debug("sent work {} to manager", id)
 
 		if (timeout > (0 seconds))
 		{
 			val cancellable = scheduler.scheduleOnce(delay = timeout)
 			{
-				log.info("Sending cancel request for work {}", id)
+				log.debug("Sending cancel request for work {}", id)
 				self ! WorkCancelRequest(workId = id)
 			}
 			cancels.put(id, cancellable)
-			log.info("Added cancellable to work id {}", id)
+			log.debug("Added cancellable to work id {}", id)
 		}
 
 		val p = Promise[R]()
@@ -180,7 +175,6 @@ class ManagementLookupBus extends EventBus with LookupClassification
 	// for the event’s classifier
 	override protected def publish(event: Event, subscriber: Subscriber): Unit = {
 		subscriber ! event.payload
-		println("sent msg " + event.payload + " to subscriber " + subscriber)
 	}
 
 	// must define a full order over the subscribers, expressed as expected from

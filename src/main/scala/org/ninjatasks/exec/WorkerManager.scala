@@ -1,6 +1,7 @@
 package org.ninjatasks.exec
 
 import akka.actor._
+
 import scala.collection.mutable
 import org.ninjatasks.work.ManagedJob
 import org.ninjatasks.mgmt._
@@ -70,7 +71,7 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	{
 		super.preStart()
 		contexts.clear()
-		val childActors = (1 to WORKER_NUM) map (s => context.actorOf(Props[Worker], s"worker-$s"))
+		val childActors = (1 to WORKER_NUM) map (i => context.actorOf(Props[Worker], s"worker-$i"))
 		childActors map (a => (a, WorkerContext(a, 0))) foreach contexts.+=
 		childActors foreach requestQueue.+=
 	}
@@ -80,7 +81,7 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	override def postRegister() =
 	{
 		requestQueue foreach (_ => publish(JobRequest))
-		log.info("Sent {} job requests to job delegator", requestQueue.size)
+		log.debug("Sent {} job requests to job delegator", requestQueue.size)
 	}
 
 	override val supervisorStrategy: SupervisorStrategy = OneForOneStrategy(maxNrOfRetries = 2,
@@ -97,12 +98,10 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	private[this] def myReceive: Actor.Receive =
 	{
 		case JobMessage(job) =>
-			log.info("Received job message with job id {}", job.id)
 			jobQueue += job
 			requestQueue.headOption foreach(_ => send(jobQueue.dequeue(), requestQueue.dequeue()))
  
 		case res: JobResult =>
-			log.info("Received job result for job {}", res.jobId)
 			val s = sender()
 			contexts -= s
 			requestQueue += s
@@ -132,7 +131,6 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 		val ctx = WorkerContext(target, job.workId)
 		contexts update(target, ctx)
 		target ! JobExecution(job, ctx.promise.future)
-		log.info("sent job {} execution msg to {}", job.id, target)
 	}
 
 	private[this] def putWorkData[D, R](workId: Long, job: ManagedJob[R, D])

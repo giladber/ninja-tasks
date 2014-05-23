@@ -6,14 +6,10 @@ import org.ninjatasks.utils.ManagementConsts._
 import scala.collection.mutable
 import akka.contrib.pattern.DistributedPubSubExtension
 import java.util.concurrent.atomic.AtomicLong
-import akka.contrib.pattern.DistributedPubSubMediator._
 import scala.annotation.tailrec
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
-import akka.contrib.pattern.DistributedPubSubMediator.UnsubscribeAck
-import akka.contrib.pattern.DistributedPubSubMediator.Subscribe
-import akka.contrib.pattern.DistributedPubSubMediator.SubscribeAck
 import org.ninjatasks.utils.ManagementConsts
-import org.ninjatasks.{ManagementNotification, ManagementLookupBus}
+import org.ninjatasks.ManagementNotification
 
 /**
  * Class responsible for managing all work-related data - storing this data and producing job sets for processing.
@@ -26,6 +22,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	 * Job delegator, responsible for delegating job requests to remote worker managers.
 	 */
 	private[this] val delegator = context.actorOf(Props[JobDelegator], JOB_DELEGATOR_ACTOR_NAME)
+	context.actorOf(Props(classOf[JobExtractor], self, delegator), JOB_EXTRACTOR_ACTOR_NAME)
 
 	private[this] val mediator = DistributedPubSubExtension(context.system).mediator
 
@@ -50,8 +47,13 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 
 	private[this] val maxWorkQueueSize = ManagementConsts.config.getLong("ninja.work-manager.max-work-queue-size")
 
-	lookupBus.subscribe(self, JOBS_TOPIC_PREFIX)
-	context.actorOf(Props(classOf[JobExtractor], self, delegator), JOB_EXTRACTOR_ACTOR_NAME)
+	override def preStart() {
+		lookupBus.subscribe(self, JOBS_TOPIC_PREFIX)
+	}
+
+	override def postStop() {
+		lookupBus.unsubscribe(self)
+	}
 
 	override def receive =
 	{
@@ -61,7 +63,6 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 			}	else {
 				acceptWork(work)
 			}
-			log.info("Done receiving work with id {}", work.id)
 
 		case JobSetRequest(amount) =>
 			pendingWork.headOption foreach (head =>
@@ -75,23 +76,17 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 			removeWork(wcm.workId, WorkCancelled(wcm.workId))
 
 		case jf: JobFailure =>
-			log.warning("Job {} failed! reason: {}", jf.jobId, jf.reason)
 			delegator ! WorkCancelRequest(jf.workId)
 			removeWork(jf.workId, WorkFailed(jf.workId, jf.reason))
 
 		case js: JobSuccess[_] =>
-			log.info("Received job success for job {}", js.jobId)
+			log.debug("Received job success for job {}", js.jobId)
 			val valueOption = workData.get(js.workId) map (v => (v._1, v._2 - 1))
 			val entryOption = valueOption map (v => (v._1.id, (v._1, v._2)))
 			entryOption foreach workData.+=
 			valueOption map (v => v._1) foreach (w => receiveResult(w, js))
 			valueOption filter (v => v._2 == 0) map (v => v._1) foreach (work => removeWork(work.id, WorkFinished(work.id,
 																																																						work.result)))
-
-		case SubscribeAck(s) => log.info("Subscribed to topic {}", s.topic)
-
-		case UnsubscribeAck(u) => log.info("Unsubscribed from topic {}", u.topic)
-
 		case other =>
 			println(s"unknown: $other")
 			throw new IllegalArgumentException(s"Received unexpected message: $other")
@@ -104,17 +99,15 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 			case mw: ManagedWork[_, _, _] => mw
 			case other => ManagedWork(other)
 		}
-//		val wrapped = ManagedWork(work)
 		workData.put(wrapped.id, (wrapped, wrapped.jobNum))
 		pendingWork += JobSetIterator(wrapped.creator, serialProducer.getAndIncrement)
 		mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(wrapped.id, wrapped.data))
 		sender() ! WorkStarted(wrapped.id)
-		log.info("received work with id {}, bare work: {}, managed: {}", wrapped.id, work, wrapped)
+		log.info("received work with id {}", wrapped.id)
 	}
 
 	private[this] def receiveResult[T](work: ManagedWork[T, _, _], js: JobSuccess[_]) =
 	{
-		println(s"updating work $work with result $js")
 		work.update(js.res.asInstanceOf[T])
 	}
 
@@ -128,6 +121,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 
 	private[this] def rejectWork(workId: Long)
 	{
+		log.warning("Rejecting work {} due to capacity max", workId)
 		sender() ! WorkRejected(workId)
 	}
 

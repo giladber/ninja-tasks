@@ -21,10 +21,11 @@ object NinjaAppManagement
 	{
 		JobManagementSubsystem.start()
 		val c: (Int, Int) => Int = (x, y) => x + y
-//		val work = new SleepWork(555, 4, 3).mapJobResults(x => 2*x, c)
-		val work = new SleepWork(555, 4, 3).map(x => "My name is " + x).map(s => s + " x " + ThreadLocalRandom.current().nextDouble().toString)
+		val work = new SleepWork(555, 4, 3).
+			mapJobs(x => 2 * x, c).
+			map(x => "My name is " + x).
+			map(s => s + " x " + ThreadLocalRandom.current().nextDouble().toString)
 		val reporter = system.actorOf(Props(classOf[WorkReportingActor[Int, Unit, Int]], work), "reporter")
-//		Thread.sleep(10000)
 		reporter ! "send"
 	}
 }

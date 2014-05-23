@@ -124,7 +124,7 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 	 * @tparam U type of the new intermediate results
 	 * @return A new work object which maps the results of job objects by the mapping function.
 	 */
-	def mapJobResults[U](f: T => U, combiner: (R, U) => R): RichWork[U, D, R] = {
+	def mapJobs[U](f: T => U, combiner: (R, U) => R): RichWork[U, D, R] = {
 		val newCreator: JobCreator[U, D] = this.creator.mapJobs(f)
 		new AbstractWork[U, D, R](combiner, this.id, this.priority, this.initialResult, this.data, this.jobNum, newCreator)
 			with RichWork[U, D, R] {}

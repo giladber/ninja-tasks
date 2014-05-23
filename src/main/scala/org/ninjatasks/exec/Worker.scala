@@ -1,6 +1,7 @@
 package org.ninjatasks.exec
 
 import akka.actor.{Actor, ActorLogging}
+
 import org.ninjatasks.mgmt.{JobRequest, JobExecution, JobFailure, JobSuccess}
 import scala.util.{Failure, Success, Try}
 
@@ -10,11 +11,6 @@ import scala.util.{Failure, Success, Try}
  */
 private[ninjatasks] class Worker extends Actor with ActorLogging
 {
-	override def preStart() =
-	{
-		println("Started worker: " + self)
-	}
-
 	override def postRestart(reason: Throwable) =
 	{
 		super.postRestart(reason)
@@ -24,7 +20,7 @@ private[ninjatasks] class Worker extends Actor with ActorLogging
 	override def receive =
 	{
 		case JobExecution(job, future) =>
-			log.info("beginning execution of job id {}", job.id)
+			log.debug("beginning execution of job id {}", job.id)
 
 			Try(job.withFuture(future).execute()) match {
 				case Success(res) => sender() ! JobSuccess(res, job.id, job.workId)

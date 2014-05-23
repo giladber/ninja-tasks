@@ -7,8 +7,7 @@ import org.ninjatasks.work.ManagedJob
 import org.ninjatasks.cluster.TopicAwareActor
 import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX, config, lookupBus}
 import java.util.concurrent.atomic.AtomicLong
-import akka.contrib.pattern.DistributedPubSubMediator.Publish
-import org.ninjatasks.{ManagementNotification, ManagementLookupBus}
+import org.ninjatasks.ManagementNotification
 
 object JobDelegator
 {
@@ -57,14 +56,7 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 	{
 		context.become(postRegisterReceive)
 		unstashAll()
-		log.info("Registration successful, unstashed messages")
-//		println("Sending job messages")
-//		jobRequestQueue foreach (ref => self ! JobMessage(SleepJob(time = 5000, id = 1, priority = 5, workId = 1010100)))
-//		context.system.scheduler.scheduleOnce(3 seconds)
-//		{
-//			println("Sent cancel msg")
-//			self ! WorkCancelRequest(1010100)
-//		}
+		log.debug("Registration successful")
 	}
 
 	private[this] def addJob(job: ManagedJob[_,_]) =
@@ -76,26 +68,21 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 	private[this] def myReceive: Actor.Receive =
 	{
 		case AggregateJobMessage(jobs) =>
-			log.info("Received aggregate job message with {} jobs", jobs.size)
 			jobs foreach addJob
-			log.info("request q size: {}, job q size: {}", jobRequestQueue.size, jobQueue.size)
 			jobRequestQueue.
 				take(Math.min(jobRequestQueue.size, jobQueue.size)).
 				map(_ => (jobRequestQueue.dequeue(), jobQueue.dequeue())).
 				foreach(r => sendJob(r._1, r._2))
 
 		case JobMessage(job) =>
-			log.info("Received job message with job: {}", job)
 			addJob(job)
 			jobRequestQueue.headOption foreach(_ => sendJob())
 
 		case JobRequest =>
-			log.info("Received job request from {}", sender())
 			jobRequestQueue += sender()
 			jobQueue.headOption foreach(_ => sendJob())
 
 		case res: JobResult =>
-			log.info("received job result: {} for job id {}",res, res.jobId)
 			lookupBus.publish(ManagementNotification(JOBS_TOPIC_PREFIX, res))
 
 		case JobCapacityRequest =>
@@ -113,9 +100,7 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 
 	private[this] def preRegisterReceive: Receive = {
 		case JobCapacityRequest => sender() ! JobCapacity(availableTaskSpace)
-		case msg =>
-			log.info(s"Received message before registration, stashing: $msg")
-			stash()
+		case msg =>	stash()
 	}
 
 	private[this] def postRegisterReceive: Receive = super.receive orElse myReceive
@@ -139,7 +124,6 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 
 	private[this] def sendJob(to: ActorRef, job: ManagedJob[_, _]): Unit =
 	{
-		log.info("sending job id {}", job.id)
 		to ! JobMessage(job)
 	}
 
