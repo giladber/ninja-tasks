@@ -143,22 +143,29 @@ private[ninjatasks] case object ComponentStartedAck extends ManagementProtocolMe
 private[ninjatasks] case class WorkStarted(workId: Long) extends ManagementProtocolMessage
 
 /**
+ * A notification that a submitted work object could not be executed due to queue size constraints,
+ * and may be sent for processing later on.
+ * @param workId Id of the work which was rejected.
+ */
+private[ninjatasks] case class WorkRejected(workId: Long) extends ManagementProtocolMessage
+
+/**
  * A notification that the execution of a work request has finished, along with its result.
  * @param workId ID of the finished work.
  * @param result Result of the execution.
  * @tparam R Type of the result object.
  */
-private[ninjatasks] case class WorkFinished[R](workId: Long, result: R) extends WorkResult
+case class WorkFinished[R](workId: Long, result: R) extends WorkResult
 
 /**
  * A notification that the execution of a work request has failed, along with its reason.
  * @param workId ID of the failed work.
  * @param reason Reason for failure.
  */
-private[ninjatasks] case class WorkFailed(workId: Long, reason: Throwable) extends WorkResult
+case class WorkFailed(workId: Long, reason: Throwable) extends WorkResult
 
 /**
  * A notification that the execution of a work request has been cancelled, as per request by a client.
  * @param workId The ID of the cancelled work.
  */
-private[ninjatasks] case class WorkCancelled(workId: Long) extends WorkResult
+case class WorkCancelled(workId: Long) extends WorkResult

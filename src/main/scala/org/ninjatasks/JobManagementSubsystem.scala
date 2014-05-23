@@ -3,7 +3,7 @@ package org.ninjatasks
 import akka.actor._
 
 import akka.pattern.ask
-import org.ninjatasks.utils.ManagementConsts.{system, WORK_MGR_ACTOR_NAME, WORK_EXECUTOR_ACTOR_NAME}
+import org.ninjatasks.utils.ManagementConsts.{system, WORK_MGR_ACTOR_NAME, WORK_EXECUTOR_ACTOR_NAME, lookupBus}
 import org.ninjatasks.mgmt._
 import org.ninjatasks.work.Work
 import scala.concurrent.{Await, Promise, Future}
@@ -16,6 +16,7 @@ import org.ninjatasks.utils.ManagementConsts
 import scala.language.postfixOps
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.reflect.ClassTag
+import akka.event.{EventBus, LookupClassification}
 
 case class WorkCancelledException(workId: Long) extends RuntimeException
 
@@ -70,10 +71,13 @@ class WorkExecutor extends Actor with ActorLogging
 	import JobManagementSubsystem.workManager
 
 	private[this] val cancels = mutable.Map[Long, Cancellable]()
+	//TODO instead of failing the promise on any non-success case, we should encapsulate the result within an Either class.
 	private[this] val promises = mutable.Map[Long, Promise[_ <: Any]]()
-	private[this] val mediator = DistributedPubSubExtension(system).mediator
+//	private[this] val mediator = DistributedPubSubExtension(system).mediator
 
 	private[this] type workTO = (Work[_, _, _], FiniteDuration)
+
+	lookupBus.subscribe(self, ManagementConsts.WORK_TOPIC_PREFIX)
 
 	override def receive: Receive =
 	{
@@ -90,6 +94,10 @@ class WorkExecutor extends Actor with ActorLogging
 		case res: WorkResult =>
 			log.info("received work result")
 			acceptWork(res)
+
+		case WorkRejected(id) =>
+			log.info("Work {} has been rejected, cancelling", id)
+			cancelWork(id)
 
 		case UnsubscribeAck(from) => log.info("Received unsubscribe ack from {}", from)
 
@@ -129,7 +137,7 @@ class WorkExecutor extends Actor with ActorLogging
 	{
 		cancels -= id
 		promises -= id
-		mediator ! Unsubscribe(ManagementConsts.WORK_TOPIC_PREFIX + id, self)
+//		mediator ! Unsubscribe(ManagementConsts.WORK_TOPIC_PREFIX + id, self)
 	}
 
 
@@ -137,7 +145,7 @@ class WorkExecutor extends Actor with ActorLogging
 	{
 		def scheduler = context.system.scheduler
 		val id = work.id
-		mediator ! Subscribe(ManagementConsts.WORK_TOPIC_PREFIX + id, self)
+//		mediator ! Subscribe(ManagementConsts.WORK_TOPIC_PREFIX + id, self)
 		workManager ! work
 		log.info("sent work {} to manager", id)
 
@@ -156,4 +164,34 @@ class WorkExecutor extends Actor with ActorLogging
 		promises.put(id, p)
 		p.future
 	}
+}
+
+final case class ManagementNotification(topic: String, payload: Any)
+class ManagementLookupBus extends EventBus with LookupClassification
+{
+	type Event = ManagementNotification
+	type Classifier = String
+	type Subscriber = ActorRef
+
+	// is used for extracting the classifier from the incoming events
+	override protected def classify(event: Event): Classifier = event.topic
+
+	// will be invoked for each event for all subscribers which registered themselves
+	// for the event’s classifier
+	override protected def publish(event: Event, subscriber: Subscriber): Unit = {
+		subscriber ! event.payload
+		println("sent msg " + event.payload + " to subscriber " + subscriber)
+	}
+
+	// must define a full order over the subscribers, expressed as expected from
+	// `java.lang.Comparable.compare`
+	override protected def compareSubscribers(a: Subscriber, b: Subscriber): Int = {
+		a.compareTo(b)
+	}
+
+	// determines the initial size of the index data structure
+	// used internally (i.e. the expected number of different classifiers)
+	override protected def mapSize(): Int = 128
+
+
 }

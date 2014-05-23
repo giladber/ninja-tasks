@@ -1,12 +1,8 @@
 package org.ninjatasks.main
 
 import akka.actor.{ActorLogging, Actor, Props}
-import akka.contrib.pattern.DistributedPubSubExtension
 import org.ninjatasks.JobManagementSubsystem
-import org.ninjatasks.utils.ManagementConsts
 import org.ninjatasks.examples.SleepWork
-import org.ninjatasks.utils.ManagementConsts._
-import akka.contrib.pattern.DistributedPubSubMediator.{SubscribeAck, Subscribe}
 import org.ninjatasks.work.Work
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -23,7 +19,13 @@ object NinjaAppManagement
 	def main(args: Array[String])
 	{
 		JobManagementSubsystem.start()
-		val work = new SleepWork(555, 4, 3)
+		val c: (Int, Int) => Int = (x, y) => {
+			println(s"combining: $x, $y")
+			val res = x + y
+			println(s"result is $res")
+			res
+		}
+		val work = new SleepWork(555, 4, 3).mapJobResults(x => 2*x, c)
 		val reporter = system.actorOf(Props(classOf[WorkReportingActor[Int, Unit, Int]], work), "reporter")
 		Thread.sleep(10000)
 		reporter ! "send"
@@ -33,7 +35,7 @@ object NinjaAppManagement
 class WorkReportingActor[T, D, R](work: Work[T, D, R]) extends Actor with ActorLogging
 {
 
-	def send(): Unit = JobManagementSubsystem.executor ! (work, 2 seconds)
+	def send(): Unit = JobManagementSubsystem.executor ! (work, 20.seconds)
 
 	import scala.concurrent.ExecutionContext.Implicits.global
 

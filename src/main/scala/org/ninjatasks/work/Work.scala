@@ -125,9 +125,10 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 	 * @tparam U type of the new intermediate results
 	 * @return A new work object which maps the results of job objects by the mapping function.
 	 */
-	def mapJobResults[U](f: T => U, combiner: (R, U) => R): Work[U, D, R] = {
-		val newCreator = this.creator.mapJobs(f)
-		new AbstractWork[U, D, R](combiner, this.id, this.priority, this.initialResult, this.data, this.jobNum, newCreator) {}
+	def mapJobResults[U](f: T => U, combiner: (R, U) => R): RichWork[U, D, R] = {
+		val newCreator: JobCreator[U, D] = this.creator.mapJobs(f)
+		new AbstractWork[U, D, R](combiner, this.id, this.priority, this.initialResult, this.data, this.jobNum, newCreator)
+			with RichWork[U, D, R] {}
 	}
 
 	/**
@@ -136,7 +137,9 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 	 * @tparam U target result type
 	 * @return A new work instance with its result mapped by the given function
 	 */
-	def map[U](f: R => U): Work[T, D, U]
+	def map[U](f: R => U): Work[T, D, U] = {
+		null
+	}
 
 	/**
 	 * Merges this work object and another work object, such that the result of the new work object is the
@@ -149,7 +152,9 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 	 * @return A new work object which includes all jobs of the two work objects and which outputs a result of their
 	 *         two results combined.
 	 */
-	def merge[T2, D2, R2](other: Work[T2, D2, R2]): Work[Either[T, T2], Either[D, D2], (R, R2)]
+	def merge[T2, D2, R2](other: Work[T2, D2, R2]): Work[Either[T, T2], Either[D, D2], (R, R2)] = {
+		null
+	}
 
 }
 
@@ -166,12 +171,12 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
  * @tparam D The type of work-related data which is supplied to the job objects.
  * @tparam R The type of the final result obtained by the computation of this work.
  */
-abstract class AbstractWork[T, D, R](val combine: (R, T) => R,
-																		 val id: Long,
-																		 val priority: Int,
-																		 val initialResult: R,
-																		 val data: D,
-																		 val jobNum: Long,
+abstract class AbstractWork[T, D, R](override val combine: (R, T) => R,
+																		 override val id: Long,
+																		 override val priority: Int,
+																		 override val initialResult: R,
+																		 override val data: D,
+																		 override val jobNum: Long,
 																		 jobCreator: => JobCreator[T, D])
 																		 		extends Work[T, D, R]
 																		 		with Serializable
@@ -186,6 +191,8 @@ abstract class AbstractWork[T, D, R](val combine: (R, T) => R,
 																			 work.data,
 																			 work.jobNum,
 																			 work.creator)
+
+
 }
 
 object ManagedWork {

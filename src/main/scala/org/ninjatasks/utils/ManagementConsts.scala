@@ -2,6 +2,7 @@ package org.ninjatasks.utils
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
+import org.ninjatasks.ManagementLookupBus
 
 /**
  *
@@ -13,6 +14,8 @@ object ManagementConsts
 	 * Name of the actor system in which the ninja-tasks system runs.
 	 */
 	val systemName = "ninja"
+
+	val lookupBus = new ManagementLookupBus
 
 
 	/**

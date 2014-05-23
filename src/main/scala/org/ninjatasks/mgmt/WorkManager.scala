@@ -2,7 +2,7 @@ package org.ninjatasks.mgmt
 
 import akka.actor.{Props, ActorLogging, Actor}
 import org.ninjatasks.work.{ManagedWork, ManagedJob, JobSetIterator, Work}
-import org.ninjatasks.utils.ManagementConsts.{WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX, WORK_TOPIC_PREFIX, JOB_EXTRACTOR_ACTOR_NAME, JOB_DELEGATOR_ACTOR_NAME}
+import org.ninjatasks.utils.ManagementConsts._
 import scala.collection.mutable
 import akka.contrib.pattern.DistributedPubSubExtension
 import java.util.concurrent.atomic.AtomicLong
@@ -12,6 +12,8 @@ import akka.contrib.pattern.DistributedPubSubMediator.Publish
 import akka.contrib.pattern.DistributedPubSubMediator.UnsubscribeAck
 import akka.contrib.pattern.DistributedPubSubMediator.Subscribe
 import akka.contrib.pattern.DistributedPubSubMediator.SubscribeAck
+import org.ninjatasks.utils.ManagementConsts
+import org.ninjatasks.{ManagementNotification, ManagementLookupBus}
 
 /**
  * Class responsible for managing all work-related data - storing this data and producing job sets for processing.
@@ -46,17 +48,20 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	 */
 	private[this] val serialProducer = new AtomicLong()
 
+	private[this] val maxWorkQueueSize = ManagementConsts.config.getLong("ninja.work-manager.max-work-queue-size")
+
+	lookupBus.subscribe(self, JOBS_TOPIC_PREFIX)
 	context.actorOf(Props(classOf[JobExtractor], self, delegator), JOB_EXTRACTOR_ACTOR_NAME)
 
 	override def receive =
 	{
 		case work: Work[_, _, _] =>
-			val wrapped = ManagedWork(work)
-			workData.put(wrapped.id, (wrapped, wrapped.jobNum))
-			pendingWork += JobSetIterator(wrapped.creator, serialProducer.getAndIncrement)
-			mediator ! Subscribe(JOBS_TOPIC_PREFIX + wrapped.id, self)
-			mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(wrapped.id, wrapped.data))
-			sender() ! WorkStarted(wrapped.id)
+			if (pendingWork.size >= maxWorkQueueSize) {
+				rejectWork(work.id)
+			}	else {
+				acceptWork(work)
+			}
+			log.info("Done receiving work with id {}", work.id)
 
 		case JobSetRequest(amount) =>
 			pendingWork.headOption foreach (head =>
@@ -75,6 +80,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 			removeWork(jf.workId, WorkFailed(jf.workId, jf.reason))
 
 		case js: JobSuccess[_] =>
+			log.info("Received job success for job {}", js.jobId)
 			val valueOption = workData.get(js.workId) map (v => (v._1, v._2 - 1))
 			val entryOption = valueOption map (v => (v._1.id, (v._1, v._2)))
 			entryOption foreach workData.+=
@@ -85,6 +91,22 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		case SubscribeAck(s) => log.info("Subscribed to topic {}", s.topic)
 
 		case UnsubscribeAck(u) => log.info("Unsubscribed from topic {}", u.topic)
+
+		case other =>
+			println(s"unknown: $other")
+			throw new IllegalArgumentException(s"Received unexpected message: $other")
+	}
+
+
+	def acceptWork(work: Work[_, _, _])
+	{
+		val wrapped = ManagedWork(work)
+		workData.put(wrapped.id, (wrapped, wrapped.jobNum))
+		pendingWork += JobSetIterator(wrapped.creator, serialProducer.getAndIncrement)
+//		mediator ! Subscribe(JOBS_TOPIC_PREFIX + wrapped.id, self)
+		mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(wrapped.id, wrapped.data))
+		sender() ! WorkStarted(wrapped.id)
+		log.info("received work with id {}, bare work: {}, managed: {}", wrapped.id, work, wrapped)
 	}
 
 	private[this] def receiveResult[T](work: ManagedWork[T, _, _], js: JobSuccess[_]) =
@@ -96,10 +118,16 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	private[this] def removeWork(workId: Long, msg: WorkResult) =
 	{
 		filterWorkQueue(workId)
-		mediator ! Publish(WORK_TOPIC_PREFIX + workId, msg)
+//		mediator ! Publish(WORK_TOPIC_PREFIX + workId, msg)
+		lookupBus.publish(ManagementNotification(WORK_TOPIC_PREFIX, msg))
 		mediator ! Publish(WORK_TOPIC_NAME, WorkDataRemoval(workId))
-		mediator ! Unsubscribe(JOBS_TOPIC_PREFIX + workId, self)
+//		mediator ! Unsubscribe(JOBS_TOPIC_PREFIX + workId, self)
 		workData -= workId
+	}
+
+	private[this] def rejectWork(workId: Long)
+	{
+		sender() ! WorkRejected(workId)
 	}
 
 

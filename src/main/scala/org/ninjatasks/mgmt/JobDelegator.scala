@@ -1,12 +1,14 @@
 package org.ninjatasks.mgmt
 
 import akka.actor._
+
 import scala.collection.mutable
 import org.ninjatasks.work.ManagedJob
 import org.ninjatasks.cluster.TopicAwareActor
-import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX, config}
+import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME, JOBS_TOPIC_PREFIX, config, lookupBus}
 import java.util.concurrent.atomic.AtomicLong
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
+import org.ninjatasks.{ManagementNotification, ManagementLookupBus}
 
 object JobDelegator
 {
@@ -91,8 +93,9 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 			jobQueue.headOption foreach(_ => sendJob())
 
 		case res: JobResult =>
-			log.info("received job result for job id {}", res.jobId)
-			mediator ! Publish(JOBS_TOPIC_PREFIX + res.workId, res)
+			log.info("received job result: {} for job id {}",res, res.jobId)
+			lookupBus.publish(ManagementNotification(JOBS_TOPIC_PREFIX, res))
+//			mediator ! Publish(JOBS_TOPIC_PREFIX + res.workId, res)
 
 		case JobCapacityRequest =>
 			val answer = availableTaskSpace
