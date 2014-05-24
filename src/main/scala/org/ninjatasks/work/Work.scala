@@ -158,6 +158,27 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 		null
 	}
 
+	/**
+	 * Add a filter to the work object's job results, ignoring results that do not pass the filter.
+	 * @param p predicate to filter by
+	 * @return A new RichWork object which ignores job results according to the input filter.
+	 */
+	def filter(p: T => Boolean): RichWork[T, D, R] = {
+		new ManagedWork[T, D, R](this) with RichWork[T, D, R]
+		{
+			override def update(t: T): R =
+			{
+				if (p(t))
+				{
+					println(s"$t passed filter")
+					super.update(t)
+				}
+				println(s"result from filter is $result")
+				result
+			}
+		}
+	}
+
 }
 
 /**
@@ -199,13 +220,7 @@ abstract class AbstractWork[T, D, R](override val combine: (R, T) => R,
 
 object ManagedWork {
 
-	def apply[T, D, R](work: Work[T, D, R]): ManagedWork[T, D, R] = new ManagedWork(work.combine,
-																																									work.id,
-																																									work.priority,
-																																									work.initialResult,
-																																									work.data,
-																																									work.jobNum,
-																																									work.creator)
+	def apply[T, D, R](work: Work[T, D, R]): ManagedWork[T, D, R] = new ManagedWork(work)
 
 }
 
@@ -234,6 +249,8 @@ private[ninjatasks] class ManagedWork[T, D, R](override val combine: (R, T) => R
 	override def creator = jobCreator
 	var result: R = initialResult
 
+	def this(work: Work[T, D, R]) = this(work.combine, work.id, work.priority, work.initialResult, work.data, work.jobNum, work.creator)
+
 	/**
 	 * Updates the intermediate result of the work's computation and returns it
 	 * @param additionalResult new job value to compute result with
@@ -242,6 +259,7 @@ private[ninjatasks] class ManagedWork[T, D, R](override val combine: (R, T) => R
 	def update(additionalResult: T): R =
 	{
 		result = combine(result, additionalResult)
+		println(s"result from base is $result")
 		result
 	}
 }
@@ -252,7 +270,8 @@ class MappedWork[T, D, R, U](work: Work[T, D, R], f: R => U) extends ManagedWork
 																																							 initialResult = f(work.initialResult),
 																																							 data = work.data,
 																																							 jobNum = work.jobNum,
-																																							 jobCreator = work.creator) with RichWork[T, D, U]
+																																							 jobCreator = work.creator)
+																																									with RichWork[T, D, U]
 {
 
 	val managed = work match {
@@ -265,6 +284,7 @@ class MappedWork[T, D, R, U](work: Work[T, D, R], f: R => U) extends ManagedWork
 	{
 		intermediateResult = managed.update(additionalResult)
 		result = f(intermediateResult)
+		println(s"result from mapped is $result")
 		result
 	}
 }
