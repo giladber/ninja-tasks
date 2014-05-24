@@ -10,15 +10,12 @@ import scala.concurrent.{Await, Promise, Future}
 import scala.concurrent.duration._
 import scala.collection.mutable
 import org.ninjatasks.mgmt.WorkFailed
-import akka.contrib.pattern.DistributedPubSubExtension
-import akka.contrib.pattern.DistributedPubSubMediator.{SubscribeAck, UnsubscribeAck, Unsubscribe, Subscribe}
 import org.ninjatasks.utils.ManagementConsts
 import scala.language.postfixOps
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.reflect.ClassTag
 import akka.event.{EventBus, LookupClassification}
 
-case class WorkCancelledException(workId: Long) extends RuntimeException
 
 /**
  * This class initiates the ninja tasks work\job management system.
@@ -34,6 +31,7 @@ object JobManagementSubsystem
 		/*just init this class*/
 	}
 
+	type WorkResultFuture[R] = Future[Either[WorkResult, R]]
 	/**
 	 * Public non-actor API.
 	 * This call may introduce blocking.
@@ -44,14 +42,14 @@ object JobManagementSubsystem
 	 * @tparam R work final result type
 	 * @return a future indicating either the failure reason or the work's result
 	 */
-	def execute[T, D, R](work: Work[T, D, R])(implicit timeout: Duration): Future[R] =
+	def execute[T, D, R](work: Work[T, D, R])(implicit timeout: Duration): Future[Either[WorkResult, R]] =
 	{
 		val message: (Work[T, D, R], Duration) = (work, timeout)
 		val submitFuture: Future[Any] = executor.ask(message)(50 millis)
 
 		val result = submitFuture map
 			{
-				case workResultFuture: Future[R] => workResultFuture
+				case workResultFuture: WorkResultFuture[R] => workResultFuture
 				case other => Future.failed(new IllegalArgumentException(s"Did not expect $other"))
 			}
 
@@ -72,7 +70,7 @@ class WorkExecutor extends Actor with ActorLogging
 
 	private[this] val cancels = mutable.Map[Long, Cancellable]()
 	//TODO instead of failing the promise on any non-success case, we should encapsulate the result within an Either class.
-	private[this] val promises = mutable.Map[Long, Promise[_ <: Any]]()
+	private[this] val promises = mutable.Map[Long, WorkPromise[_ <: Any]]()
 
 	private[this] type WorkAndTimeout = (Work[_, _, _], FiniteDuration)
 
@@ -103,31 +101,30 @@ class WorkExecutor extends Actor with ActorLogging
 
 	private[this] def cancelWork(id: Long): Unit =
 	{
-		promises.get(id) foreach(p => p.failure(WorkCancelledException(id)))
+		promises.get(id) foreach(p => p.success(Left(WorkCancelled(id))))
 		clearWorkData(id)
 		workManager ! WorkCancelRequest(id)
 	}
 
+	type WorkPromise[A] = Promise[Either[WorkResult, A]]
 	private[this] def acceptResult(result: WorkResult): Unit =
 	{
+		val wId: Long = result.workId
 		result match
 		{
 			case WorkFinished(id, res) =>
-				def applyResult[T: ClassTag](p: Promise[T]): Unit = p.success(res.asInstanceOf[T])
-				promises.get(id) foreach (p => applyResult(p))
+				def applyResult[T: ClassTag](p: WorkPromise[T]): Unit = p.success(Right(res.asInstanceOf[T]))
+				promises.get(wId) foreach (p => applyResult(p))
 
-			case WorkCancelled(wId) =>
-				promises.get(wId) foreach (p => p.failure(WorkCancelledException(wId)))
-
-			case WorkFailed(wId, reason) =>
+			case WorkFailed(id, reason) =>
 				promises.get(wId) foreach (p => p.failure(reason))
 
-			case WorkRejected(wId) =>
-				promises.get(wId) foreach (p => p.failure(WorkCancelledException(wId)))
+			case other: WorkResult =>
+				promises.get(wId) foreach (p => p.success(Left(other)))
 		}
 
-		cancels.get(result.workId) foreach (_.cancel())
-		clearWorkData(result.workId)
+		cancels.get(wId) foreach (_.cancel())
+		clearWorkData(wId)
 	}
 
 	private[this] def clearWorkData(id: Long): Unit =
@@ -137,7 +134,7 @@ class WorkExecutor extends Actor with ActorLogging
 	}
 
 
-	private[this] def send[T, D, R](work: Work[T, D, R])(implicit timeout: FiniteDuration): Future[R] =
+	private[this] def send[T, D, R](work: Work[T, D, R])(implicit timeout: FiniteDuration): Future[Either[WorkResult, R]] =
 	{
 		def scheduler = context.system.scheduler
 		val id = work.id
@@ -155,7 +152,7 @@ class WorkExecutor extends Actor with ActorLogging
 			log.debug("Added cancellable to work id {}", id)
 		}
 
-		val p = Promise[R]()
+		val p: WorkPromise[R] = Promise[Either[WorkResult, R]]()
 		promises.put(id, p)
 		p.future
 	}
