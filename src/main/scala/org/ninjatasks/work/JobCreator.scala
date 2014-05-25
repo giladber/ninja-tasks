@@ -31,24 +31,6 @@ trait JobCreator[T, D] extends Serializable
 	 * @return remaining number of jobs that can possibly be created
 	 */
 	def remaining: Long
-
-	def mapJobs[U](f: T => U) =
-	{
-		new WrappedJobCreator[U, D](self)
-		{
-			override def create(amount: Long): immutable.Seq[ExecutableJob[U, D]] = {
-				self.create(amount).map(job => new ExecutableJob[U, D] with Serializable {
-					override val id: Long = job.id
-					override val workId: Long = job.workId
-					override var workData: D = job.workData
-					override val priority: Int = job.priority
-					override val shouldStop: AtomicBoolean = job.shouldStop
-
-					override def execute(): U = f(job.execute())
-				})
-			}
-		}
-	}
 }
 
 abstract class AbstractJobCreator[T, D](val workId: Long, val priority: Int, val jobNum: Long) extends JobCreator[T, D]
