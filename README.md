@@ -30,9 +30,9 @@ SPI
 ---
 
 There are some basic interfaces which need to be implemented by the user in order to use the distributed execution functionality. All of these interfaces (traits) are in the org.ninjatasks.spi package.
-1. ExecutableJob - this trait represents the job objects described above. Its implementations must specify execution logic along with required input data.
-2. Work - This trait represents the work objects described above. Its implementations must specify the input given to job objects, along with a result reduction function, an initial result, and the number of underlying tasks to be processed.
-3. JobCreator - this trait is required in order to implement a lazy job creation process, so that the management subsystem can be run in machines without requiring huge amounts of RAM to support big work requests. It is queried in a work object and is queried for jobs whenever there is enough space and time to process more.
+* ExecutableJob - this trait represents the job objects described above. Its implementations must specify execution logic along with required input data.
+* Work - This trait represents the work objects described above. Its implementations must specify the input given to job objects, along with a result reduction function, an initial result, and the number of underlying tasks to be processed.
+* JobCreator - this trait is required in order to implement a lazy job creation process, so that the management subsystem can be run in machines without requiring huge amounts of RAM to support big work requests. It is queried in a work object and is queried for jobs whenever there is enough space and time to process more.
 
 Functional Operations
 ---------------------
