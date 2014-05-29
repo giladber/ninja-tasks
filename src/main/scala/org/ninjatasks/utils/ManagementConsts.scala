@@ -2,7 +2,7 @@ package org.ninjatasks.utils
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
-import org.ninjatasks.ManagementLookupBus
+import org.ninjatasks.api.ManagementLookupBus
 
 /**
  *

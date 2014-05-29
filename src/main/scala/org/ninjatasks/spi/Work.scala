@@ -1,4 +1,6 @@
-package org.ninjatasks.work
+package org.ninjatasks.spi
+
+import org.ninjatasks.spi.JobCreator
 
 /**
  * A work object is a container for multiple job objects.
@@ -37,7 +39,7 @@ package org.ninjatasks.work
  * @tparam D The type of work-related data which is supplied to the job objects.
  * @tparam R The type of the final result obtained by the computation of this work.
  */
-trait Work[T, D, R]
+trait Work[T, D, R] extends Serializable
 {
 	/**
 	 * Job objects factory, for lazy creation of jobs when required and when
@@ -113,7 +115,7 @@ trait Work[T, D, R]
  * @tparam D The type of work-related data which is supplied to the job objects.
  * @tparam R The type of the final result obtained by the computation of this work.
  */
-trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
+trait RichWork[T, D, R] extends Work[T, D, R]
 {
 	self =>
 	/**
@@ -125,9 +127,7 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 	 * @return A new work object which maps the results of job objects by the mapping function.
 	 */
 	def mapJobs[U](f: T => U, combiner: (R, U) => R): RichWork[U, D, R] = {
-		val newCreator: JobCreator[U, D] = this.creator.mapJobs(f)
-		new AbstractWork[U, D, R](combiner, this.id, this.priority, this.initialResult, this.data, this.jobNum, newCreator)
-			with RichWork[U, D, R] {}
+
 	}
 
 
@@ -143,20 +143,20 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 
 
 
-	/**
-	 * Merges this work object and another work object, such that the result of the new work object is the
-	 * pair consisting of both work objects' results, and such that its underlying jobs are this work's jobs
-	 * along with the input work's jobs.
-	 * @param other Work object to merge this work with.
-	 * @tparam T2 Type of other work's job results.
-	 * @tparam D2 Type of other work's data.
-	 * @tparam R2 Type of other work's result
-	 * @return A new work object which includes all jobs of the two work objects and which outputs a result of their
-	 *         two results combined.
-	 */
-	def merge[T2, D2, R2](other: Work[T2, D2, R2]): Work[Either[T, T2], Either[D, D2], (R, R2)] = {
-		null
-	}
+//	/**
+//	 * Merges this work object and another work object, such that the result of the new work object is the
+//	 * pair consisting of both work objects' results, and such that its underlying jobs are this work's jobs
+//	 * along with the input work's jobs.
+//	 * @param other Work object to merge this work with.
+//	 * @tparam T2 Type of other work's job results.
+//	 * @tparam D2 Type of other work's data.
+//	 * @tparam R2 Type of other work's result
+//	 * @return A new work object which includes all jobs of the two work objects and which outputs a result of their
+//	 *         two results combined.
+//	 */
+//	def merge[T2, D2, R2](other: Work[T2, D2, R2]): RichWork[Either[T, T2], Either[D, D2], (R, R2)] = {
+//		null
+//	}
 
 	/**
 	 * Add a filter to the work object's job results, ignoring results that do not pass the filter.
@@ -164,64 +164,14 @@ trait RichWork[T, D, R] extends Work[T, D, R] with Serializable
 	 * @return A new RichWork object which ignores job results according to the input filter.
 	 */
 	def filter(p: T => Boolean): RichWork[T, D, R] = {
-		new ManagedWork[T, D, R](this) with RichWork[T, D, R]
-		{
-			override def update(t: T): R =
-			{
-				if (p(t))
-				{
-					println(s"$t passed filter")
-					super.update(t)
-				}
-				println(s"result from filter is $result")
-				result
-			}
-		}
+
 	}
 
 }
 
-/**
- * Base abstract work class for use in the functional operations of RichWork.
- * For information on parameters, see Work's documentation
- * @param combine combine function
- * @param id unique work id
- * @param priority work priority
- * @param initialResult initial work result, before reduction
- * @param data work data
- * @param jobNum number of jobs that require processing
- * @tparam T The type of results produced by processing the underlying jobs.
- * @tparam D The type of work-related data which is supplied to the job objects.
- * @tparam R The type of the final result obtained by the computation of this work.
- */
-abstract class AbstractWork[T, D, R](override val combine: (R, T) => R,
-																		 override val id: Long,
-																		 override val priority: Int,
-																		 override val initialResult: R,
-																		 override val data: D,
-																		 override val jobNum: Long,
-																		 jobCreator: => JobCreator[T, D])
-																		 		extends Work[T, D, R]
-																		 		with Serializable
-{
-
-	override def creator: JobCreator[T, D] = jobCreator
-
-	def this(work: Work[T, D, R]) = this(work.combine,
-																			 work.id,
-																			 work.priority,
-																			 work.initialResult,
-																			 work.data,
-																			 work.jobNum,
-																			 work.creator)
-
-
-}
 
 object ManagedWork {
-
 	def apply[T, D, R](work: Work[T, D, R]): ManagedWork[T, D, R] = new ManagedWork(work)
-
 }
 
 /**
@@ -237,7 +187,7 @@ private[ninjatasks] class ManagedWork[T, D, R](override val combine: (R, T) => R
 																							 override val data: D,
 																							 override val jobNum: Long,
 																							 jobCreator: => JobCreator[T, D])
-																									extends Work[T, D, R] with Serializable
+																									extends RichWork[T, D, R]
 {
 
 	require(creator != null)
@@ -246,6 +196,7 @@ private[ninjatasks] class ManagedWork[T, D, R](override val combine: (R, T) => R
 	require(data != null)
 	require(jobNum > 0)
 
+	val jobs: RichJobs[T, D, T] = RichJobs(jobCreator)
 	override def creator = jobCreator
 	var result: R = initialResult
 
@@ -271,7 +222,6 @@ class MappedWork[T, D, R, U](work: Work[T, D, R], f: R => U) extends ManagedWork
 																																							 data = work.data,
 																																							 jobNum = work.jobNum,
 																																							 jobCreator = work.creator)
-																																									with RichWork[T, D, U]
 {
 
 	val managed = work match {

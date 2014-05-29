@@ -1,4 +1,4 @@
-package org.ninjatasks.work
+package org.ninjatasks.spi
 
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global

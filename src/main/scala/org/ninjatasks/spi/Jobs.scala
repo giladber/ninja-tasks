@@ -1,4 +1,4 @@
-package org.ninjatasks.work
+package org.ninjatasks.spi
 
 trait Jobs[T, D] extends Serializable
 {

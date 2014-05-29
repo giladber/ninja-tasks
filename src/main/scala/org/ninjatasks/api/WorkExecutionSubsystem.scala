@@ -1,8 +1,7 @@
-package org.ninjatasks
-
+package org.ninjatasks.api
 
 import akka.actor.Props
-import org.ninjatasks.exec.WorkerManager
+import org.ninjatasks.execution.WorkerManager
 import org.ninjatasks.utils.ManagementConsts.{system, WORKER_MGR_ACTOR_NAME}
 
 

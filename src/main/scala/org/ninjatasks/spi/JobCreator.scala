@@ -1,7 +1,7 @@
-package org.ninjatasks.work
+package org.ninjatasks.spi
 
 import scala.collection.immutable
-import java.util.concurrent.atomic.AtomicBoolean
+import org.ninjatasks.spi.ExecutableJob
 
 /**
  * General interface for a factory which batch-creates job objects on demand.

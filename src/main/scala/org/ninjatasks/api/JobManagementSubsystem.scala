@@ -1,20 +1,20 @@
-package org.ninjatasks
+package org.ninjatasks.api
 
 import akka.actor._
 
 import akka.pattern.ask
 import org.ninjatasks.utils.ManagementConsts.{system, WORK_MGR_ACTOR_NAME, WORK_EXECUTOR_ACTOR_NAME, lookupBus}
-import org.ninjatasks.mgmt._
-import org.ninjatasks.work.Work
+import org.ninjatasks.taskmanagement._
 import scala.concurrent.{Await, Promise, Future}
 import scala.concurrent.duration._
 import scala.collection.mutable
-import org.ninjatasks.mgmt.WorkFailed
+import org.ninjatasks.taskmanagement.WorkFailed
 import org.ninjatasks.utils.ManagementConsts
 import scala.language.postfixOps
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.reflect.ClassTag
 import akka.event.{EventBus, LookupClassification}
+import org.ninjatasks.spi.Work
 
 
 /**
