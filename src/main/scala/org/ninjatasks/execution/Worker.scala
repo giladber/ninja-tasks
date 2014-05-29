@@ -1,8 +1,8 @@
-package org.ninjatasks.exec
+package org.ninjatasks.execution
 
 import akka.actor.{Actor, ActorLogging}
 
-import org.ninjatasks.mgmt.{JobRequest, JobExecution, JobFailure, JobSuccess}
+import org.ninjatasks.taskmanagement.{JobRequest, JobExecution, JobFailure, JobSuccess}
 import scala.util.{Failure, Success, Try}
 
 /**

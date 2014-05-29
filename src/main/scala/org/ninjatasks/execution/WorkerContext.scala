@@ -1,4 +1,4 @@
-package org.ninjatasks.exec
+package org.ninjatasks.execution
 
 import scala.concurrent.Promise
 import akka.actor.ActorRef

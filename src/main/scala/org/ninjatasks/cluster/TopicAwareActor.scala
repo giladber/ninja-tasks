@@ -1,6 +1,6 @@
 package org.ninjatasks.cluster
 
-import org.ninjatasks.mgmt.{ComponentStartedAck, ComponentStarted}
+import org.ninjatasks.taskmanagement.{ComponentStartedAck, ComponentStarted}
 import org.ninjatasks.utils.ManagementConsts.config
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
 import scala.concurrent.duration._

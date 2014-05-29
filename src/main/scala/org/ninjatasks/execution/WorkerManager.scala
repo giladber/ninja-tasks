@@ -1,16 +1,16 @@
-package org.ninjatasks.exec
+package org.ninjatasks.execution
 
 import akka.actor._
 
 import scala.collection.mutable
-import org.ninjatasks.work.ManagedJob
-import org.ninjatasks.mgmt._
+import org.ninjatasks.taskmanagement._
 import org.ninjatasks.cluster.TopicAwareActor
-import org.ninjatasks.mgmt.WorkDataMessage
+import org.ninjatasks.taskmanagement.WorkDataMessage
 import akka.actor.SupervisorStrategy.{Resume, Stop, Restart, Escalate}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import org.ninjatasks.utils.ManagementConsts
+import org.ninjatasks.spi.ManagedJob
 
 object WorkerManager
 {

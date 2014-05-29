@@ -1,4 +1,4 @@
-package org.ninjatasks.mgmt
+package org.ninjatasks.taskmanagement
 
 import akka.actor.{ActorRef, Cancellable, Actor, ActorLogging}
 
