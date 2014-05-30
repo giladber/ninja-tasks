@@ -1,7 +1,6 @@
 package org.ninjatasks.spi
 
 import scala.collection.immutable
-import org.ninjatasks.spi.ExecutableJob
 
 /**
  * General interface for a factory which batch-creates job objects on demand.

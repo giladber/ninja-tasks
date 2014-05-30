@@ -1,8 +1,10 @@
 package org.ninjatasks.spi
 
 import scala.concurrent.Future
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.language.implicitConversions
 
 object ManagedJob
 {

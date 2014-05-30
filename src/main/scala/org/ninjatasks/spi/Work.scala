@@ -1,7 +1,5 @@
 package org.ninjatasks.spi
 
-import org.ninjatasks.spi.JobCreator
-
 /**
  * A work object is a container for multiple job objects.
  * The logic and data included in this object are:

@@ -47,9 +47,10 @@ object JobManagementSubsystem
 		val message: (Work[T, D, R], Duration) = (work, timeout)
 		val submitFuture: Future[Any] = executor.ask(message)(50 millis)
 
+		type TypedWorkResult = WorkResultFuture[R]
 		val result = submitFuture map
 			{
-				case workResultFuture: WorkResultFuture[R] => workResultFuture
+				case workResultFuture: TypedWorkResult => workResultFuture
 				case other => Future.failed(new IllegalArgumentException(s"Did not expect $other"))
 			}
 

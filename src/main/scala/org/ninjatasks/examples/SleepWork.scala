@@ -1,6 +1,5 @@
 package org.ninjatasks.examples
 
-import org.ninjatasks.work._
 import scala.collection.immutable
 import org.ninjatasks.spi.{ExecutableJob, AbstractJobCreator, JobCreator, RichWork}
 
