@@ -11,6 +11,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import org.ninjatasks.utils.ManagementConsts
 import org.ninjatasks.spi.ManagedJob
+import java.util.UUID
 
 object WorkerManager
 {
@@ -26,6 +27,7 @@ object WorkerManager
 
 
 import org.ninjatasks.utils.ManagementConsts.{WORK_TOPIC_NAME, MGMT_TOPIC_NAME}
+
 import WorkerManager._
 
 /**
@@ -39,7 +41,7 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 	 * Map used to store work data objects.
 	 * Since work data objects may be of any kind, the value type here is Any.
 	 */
-	private[this] val workData = new mutable.HashMap[Long, Any]
+	private[this] val workData = new mutable.HashMap[UUID, Any]
 
 	/**
 	 * Queue of pending job requests made by this actor's children.
@@ -72,7 +74,7 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 		super.preStart()
 		contexts.clear()
 		val childActors = (1 to WORKER_NUM) map (i => context.actorOf(Props[Worker], s"worker-$i"))
-		childActors map (a => (a, WorkerContext(a, 0))) foreach contexts.+=
+		childActors map (a => (a, WorkerContext(a, UUID.randomUUID()))) foreach contexts.+=
 		childActors foreach requestQueue.+=
 	}
 
@@ -133,9 +135,9 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 		target ! JobExecution(job, ctx.promise.future)
 	}
 
-	private[this] def putWorkData[D, R](workId: Long, job: ManagedJob[R, D])
+	private[this] def putWorkData[D, R](workId: UUID, job: ManagedJob[R, D])
 	{
-		val dataOption = workData.get(job.workId)
+		val dataOption = workData.get(workId)
 		dataOption foreach(work => job.workData = work.asInstanceOf[D])
 	}
 }

@@ -1,6 +1,7 @@
 package org.ninjatasks.spi
 
 import scala.collection.immutable
+import java.util.UUID
 
 /**
  * General interface for a factory which batch-creates job objects on demand.
@@ -10,12 +11,7 @@ import scala.collection.immutable
  */
 trait JobCreator[T, D] extends Serializable
 {
-	self =>
-
-	val workId: Long
-	val priority: Int
 	val jobNum: Long
-
 	/**
 	 * Returns a set of un-traversed jobs consisting of at most amount jobs
 	 * This method is expected to have side-effects, in order to keep track of
@@ -32,11 +28,8 @@ trait JobCreator[T, D] extends Serializable
 	def remaining: Long
 }
 
-abstract class AbstractJobCreator[T, D](val workId: Long, val priority: Int, val jobNum: Long) extends JobCreator[T, D]
+abstract class AbstractJobCreator[T, D] extends JobCreator[T, D]
 {
-
-	def this(work: Work[T, D, _]) = this(work.id, work.priority, work.jobNum)
-	def this(creator: JobCreator[_, _]) = this(creator.workId, creator.priority, creator.jobNum)
 
 	protected var produced: Long = 0
 
@@ -51,16 +44,9 @@ abstract class AbstractJobCreator[T, D](val workId: Long, val priority: Int, val
 	protected def updateProduced(created: Long): Unit = produced = produced + created
 }
 
-abstract class WrappedJobCreator[T, D](val base: JobCreator[_, D]) extends AbstractJobCreator[T, D](base) {
-	override def remaining = base.remaining
-	override val workId: Long = base.workId
-	override val priority: Int = base.priority
-	override val jobNum: Long = base.jobNum
-}
-
 object JobSetIterator
 {
-	def apply[T, D](producer: JobCreator[T, D], serial: Long) = new JobSetIterator(producer, serial)
+	def apply[T, D](producer: JobCreator[T, D], serial: Long, workId: UUID, priority: Int) = new JobSetIterator(producer, serial, workId, priority)
 }
 
 /**
@@ -69,17 +55,15 @@ object JobSetIterator
  * @tparam T Type returned by the work's underlying jobs
  * @tparam D Type of the work's data object
  */
-class JobSetIterator[T, D](val producer: JobCreator[T, D], val serial: Long)
-														extends Iterator[immutable.Seq[ExecutableJob[T, D]]]
-														with Ordered[JobSetIterator[_, _]]
+class JobSetIterator[T, D](val producer: JobCreator[T, D], val serial: Long, val workId: UUID, val priority: Int)
+	extends Iterator[immutable.Seq[ExecutableJob[T, D]]]
+	with Ordered[JobSetIterator[_, _]]
 {
 	override def hasNext = producer.remaining > 0
 
 	override def next() = producer.create(1)
 
-	def next(amount: Long): immutable.Seq[ManagedJob[T, D]] = producer.create(amount).map(ManagedJob(_))
-
-	def priority: Int = producer.priority
+	def next(amount: Long): immutable.Seq[ManagedJob[T, D]] = producer.create(amount).map(ManagedJob(_, workId))
 
 	override def compare(that: JobSetIterator[_, _]) =
 		this.priority - that.priority match

@@ -7,7 +7,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import org.ninjatasks.api.JobManagementSubsystem
 import JobManagementSubsystem.WorkResultFuture
-import org.ninjatasks.spi.Work
+import org.ninjatasks.spi.FuncWork
 import org.ninjatasks.api.JobManagementSubsystem
 
 /**
@@ -22,17 +22,20 @@ object NinjaAppManagement
 	def main(args: Array[String])
 	{
 		JobManagementSubsystem.start()
-		val c: (Int, Int) => Int = (x, y) => x + y
-		val work = new SleepWork(555, 4, 3).
-			filter(x => x < 0).
-			mapJobs(x => 2 * x, c).
-			map(x => "My name is " + x)
+		val c: (Int, Int) => Int = (x, y) => (1 + x) *(1 + y)
+		val s: (Int, String) => Int = (i, s) => i + s.length
+		val work = new SleepWork(3, 2).make().
+			filter(x => x > 0).
+			mapJobs(x => 5 * x, c).
+			mapJobs(_.toString, s).
+			map(x => "Length of all results combined is " + x).
+			foreach(x => println(s"received $x"))
 		val reporter = system.actorOf(Props(classOf[WorkReportingActor[Int, Unit, Int]], work), "reporter")
 		reporter ! "send"
 	}
 }
 
-class WorkReportingActor[T, D, R](work: Work[T, D, R]) extends Actor with ActorLogging
+class WorkReportingActor[T, D, R](work: FuncWork[T, D, R]) extends Actor with ActorLogging
 {
 
 	def send(): Unit = JobManagementSubsystem.executor !(work, 20.seconds)
@@ -47,9 +50,9 @@ class WorkReportingActor[T, D, R](work: Work[T, D, R]) extends Actor with ActorL
 				either match
 				{
 					case Right(result) =>
-						log.info("received result of work {}: = {}", work.id, result)
+						log.info("received result of work {}: = {}", work, result)
 					case Left(msg) =>
-						log.info("Execution of work {} did not finish because of: {}", work.id, msg)
+						log.info("Execution of work {} did not finish because of: {}", work, msg)
 				}
 
 			case Failure(ex) => log.error(ex, "error during work execution")

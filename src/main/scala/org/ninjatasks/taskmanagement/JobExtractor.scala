@@ -2,6 +2,7 @@ package org.ninjatasks.taskmanagement
 
 import akka.actor.{ActorRef, Cancellable, Actor, ActorLogging}
 
+
 import scala.concurrent.duration._
 import akka.pattern.{ask, pipe, AskTimeoutException}
 import scala.concurrent.ExecutionContext.Implicits.global

@@ -6,9 +6,10 @@ import scala.collection.mutable
 import akka.contrib.pattern.DistributedPubSubExtension
 import java.util.concurrent.atomic.AtomicLong
 import scala.annotation.tailrec
-import akka.contrib.pattern.DistributedPubSubMediator.Publish
 import org.ninjatasks.utils.ManagementConsts
-import org.ninjatasks.spi.{ManagedJob, JobSetIterator, ManagedWork, Work}
+import org.ninjatasks.spi._
+import java.util.UUID
+import akka.contrib.pattern.DistributedPubSubMediator.Publish
 import org.ninjatasks.api.ManagementNotification
 
 /**
@@ -37,7 +38,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	 * number of tasks remaining to be processed.
 	 * The key of the map is the work object's id.
 	 */
-	private[this] val workData = new mutable.HashMap[Long, (ManagedWork[_, _, _], Long)]
+	private[this] val workData = new mutable.HashMap[UUID, (FuncWork[_, _, _], Long)]
 
 	/**
 	 * Atomic object which produces serial numbers for incoming work objects.
@@ -57,7 +58,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 
 	override def receive =
 	{
-		case work: Work[_, _, _] =>
+		case work: FuncWork[_, _, _] =>
 			if (pendingWork.size >= maxWorkQueueSize) {
 				rejectWork(work.id)
 			}	else {
@@ -88,30 +89,26 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 			valueOption filter (v => v._2 == 0) map (v => v._1) foreach (work => removeWork(work.id, WorkFinished(work.id,
 																																																						work.result)))
 		case other =>
-			println(s"unknown: $other")
 			throw new IllegalArgumentException(s"Received unexpected message: $other")
 	}
 
 
-	def acceptWork(work: Work[_, _, _])
+	def acceptWork(work: FuncWork[_, _, _])
 	{
-		val wrapped = work match {
-			case mw: ManagedWork[_, _, _] => mw
-			case other => ManagedWork(other)
-		}
-		workData.put(wrapped.id, (wrapped, wrapped.jobNum))
-		pendingWork += JobSetIterator(wrapped.creator, serialProducer.getAndIncrement)
-		mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(wrapped.id, wrapped.data))
-		sender() ! WorkStarted(wrapped.id)
-		log.info("received work with id {}", wrapped.id)
+		val creator = work.creator
+		workData.put(work.id, (work, creator.jobNum))
+		pendingWork += JobSetIterator(creator, serialProducer.getAndIncrement, work.id, work.priority)
+		mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(work.id, work.data))
+		sender() ! WorkStarted(work.id)
+		log.info("received work with id {}", work.id)
 	}
 
-	private[this] def receiveResult[T](work: ManagedWork[T, _, _], js: JobSuccess[_]) =
+	private[this] def receiveResult[T](work: FuncWork[_, _, _], js: JobSuccess[_]) =
 	{
-		work.update(js.res.asInstanceOf[T])
+		work.update(js.res.asInstanceOf[work.baseJobType])
 	}
 
-	private[this] def removeWork(workId: Long, msg: WorkResult) =
+	private[this] def removeWork(workId: UUID, msg: WorkResult) =
 	{
 		filterWorkQueue(workId)
 		lookupBus.publish(ManagementNotification(WORK_TOPIC_PREFIX, msg))
@@ -119,19 +116,19 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		workData -= workId
 	}
 
-	private[this] def rejectWork(workId: Long)
+	private[this] def rejectWork(workId: UUID)
 	{
 		log.warning("Rejecting work {} due to capacity max", workId)
 		sender() ! WorkRejected(workId)
 	}
 
 
-	private[this] def filterWorkQueue(workId: Long)
+	private[this] def filterWorkQueue(workId: UUID)
 	{
 		val tempWorkQueue = mutable.PriorityQueue[JobSetIterator[_, _]]()
 		tempWorkQueue ++= pendingWork
 		pendingWork.clear()
-		tempWorkQueue filter (it => it.producer.workId != workId) foreach pendingWork.+=
+		tempWorkQueue filter (it => it.workId != workId) foreach pendingWork.+=
 	}
 
 	import scala.collection.immutable

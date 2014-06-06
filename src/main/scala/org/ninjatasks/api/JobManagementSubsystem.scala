@@ -3,18 +3,22 @@ package org.ninjatasks.api
 import akka.actor._
 
 import akka.pattern.ask
-import org.ninjatasks.utils.ManagementConsts.{system, WORK_MGR_ACTOR_NAME, WORK_EXECUTOR_ACTOR_NAME, lookupBus}
+import org.ninjatasks.utils.ManagementConsts._
 import org.ninjatasks.taskmanagement._
 import scala.concurrent.{Await, Promise, Future}
 import scala.concurrent.duration._
 import scala.collection.mutable
-import org.ninjatasks.taskmanagement.WorkFailed
-import org.ninjatasks.utils.ManagementConsts
 import scala.language.postfixOps
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.reflect.ClassTag
 import akka.event.{EventBus, LookupClassification}
-import org.ninjatasks.spi.Work
+import org.ninjatasks.spi.FuncWork
+import java.util.UUID
+import org.ninjatasks.utils.ManagementConsts
+import org.ninjatasks.taskmanagement.WorkCancelRequest
+import org.ninjatasks.taskmanagement.WorkCancelled
+import org.ninjatasks.taskmanagement.WorkFinished
+import org.ninjatasks.taskmanagement.WorkFailed
 
 
 /**
@@ -42,9 +46,9 @@ object JobManagementSubsystem
 	 * @tparam R work final result type
 	 * @return a future indicating either the failure reason or the work's result
 	 */
-	def execute[T, D, R](work: Work[T, D, R])(implicit timeout: Duration): Future[Either[WorkResult, R]] =
+	def execute[T, D, R](work: FuncWork[T, D, R])(implicit timeout: Duration): Future[Either[WorkResult, R]] =
 	{
-		val message: (Work[T, D, R], Duration) = (work, timeout)
+		val message: (FuncWork[T, D, R], Duration) = (work, timeout)
 		val submitFuture: Future[Any] = executor.ask(message)(50 millis)
 
 		type TypedWorkResult = WorkResultFuture[R]
@@ -57,7 +61,7 @@ object JobManagementSubsystem
 		Await.result(result, 50 millis)
 	}
 
-	def cancel(workId: Long): Unit = executor ! WorkCancelRequest(workId)
+	def cancel(workId: UUID): Unit = executor ! WorkCancelRequest(workId)
 }
 
 /**
@@ -69,14 +73,14 @@ class WorkExecutor extends Actor with ActorLogging
 
 	import JobManagementSubsystem.workManager
 
-	private[this] val cancels = mutable.Map[Long, Cancellable]()
-	//TODO instead of failing the promise on any non-success case, we should encapsulate the result within an Either class.
-	private[this] val promises = mutable.Map[Long, WorkPromise[_ <: Any]]()
+	private[this] val cancels = mutable.Map[UUID, Cancellable]()
+	private[this] val promises = mutable.Map[UUID, WorkPromise[_ <: Any]]()
+	private[this] val lookupBus = ManagementConsts.lookupBus
 
-	private[this] type WorkAndTimeout = (Work[_, _, _], FiniteDuration)
+	private[this] type WorkAndTimeout = (FuncWork[_, _, _], FiniteDuration)
 
 	override def preStart() {
-		lookupBus.subscribe(self, ManagementConsts.WORK_TOPIC_PREFIX)
+		lookupBus.subscribe(self, WORK_TOPIC_PREFIX)
 	}
 
 	override def postStop() {
@@ -87,7 +91,7 @@ class WorkExecutor extends Actor with ActorLogging
 	{
 
 		case workWithTimeout: WorkAndTimeout =>
-			log.info("Received work {} with timeout {}", workWithTimeout._1.id, workWithTimeout._2)
+			log.info("Received work with timeout {}", workWithTimeout._2)
 			val future = send(workWithTimeout._1)(workWithTimeout._2)
 			sender() ! future
 
@@ -100,7 +104,7 @@ class WorkExecutor extends Actor with ActorLogging
 			acceptResult(res)
 	}
 
-	private[this] def cancelWork(id: Long): Unit =
+	private[this] def cancelWork(id: UUID): Unit =
 	{
 		promises.get(id) foreach(p => p.success(Left(WorkCancelled(id))))
 		clearWorkData(id)
@@ -110,7 +114,7 @@ class WorkExecutor extends Actor with ActorLogging
 	type WorkPromise[A] = Promise[Either[WorkResult, A]]
 	private[this] def acceptResult(result: WorkResult): Unit =
 	{
-		val wId: Long = result.workId
+		val wId = result.workId
 		result match
 		{
 			case WorkFinished(id, res) =>
@@ -128,14 +132,14 @@ class WorkExecutor extends Actor with ActorLogging
 		clearWorkData(wId)
 	}
 
-	private[this] def clearWorkData(id: Long): Unit =
+	private[this] def clearWorkData(id: UUID): Unit =
 	{
 		cancels -= id
 		promises -= id
 	}
 
 
-	private[this] def send[T, D, R](work: Work[T, D, R])(implicit timeout: FiniteDuration): Future[Either[WorkResult, R]] =
+	private[this] def send[R](work: FuncWork[_, _, R])(implicit timeout: FiniteDuration): Future[Either[WorkResult, R]] =
 	{
 		def scheduler = context.system.scheduler
 		val id = work.id
@@ -183,7 +187,7 @@ class ManagementLookupBus extends EventBus with LookupClassification
 
 	// determines the initial size of the index data structure
 	// used internally (i.e. the expected number of different classifiers)
-	override protected def mapSize(): Int = 128
+	override protected def mapSize(): Int = 256
 
 
 }

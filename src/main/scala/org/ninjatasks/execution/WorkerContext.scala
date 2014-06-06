@@ -3,10 +3,11 @@ package org.ninjatasks.execution
 import scala.concurrent.Promise
 import akka.actor.ActorRef
 import scala.concurrent.promise
+import java.util.UUID
 
 private[ninjatasks] object WorkerContext
 {
-	def apply(worker: ActorRef, workId: Long) =
+	def apply(worker: ActorRef, workId: UUID) =
 		new WorkerContext(promise[Int](), workId, worker)
 }
 
@@ -14,7 +15,7 @@ private[ninjatasks] object WorkerContext
  * Promise used to signal cancellation of work being processed by workers.
  * Created by Gilad Ber on 4/26/2014.
  */
-private[ninjatasks] class WorkerContext(val promise: Promise[Int], val workId: Long, val worker: ActorRef)
+private[ninjatasks] class WorkerContext(val promise: Promise[Int], val workId: UUID, val worker: ActorRef)
 {
 
 	/**

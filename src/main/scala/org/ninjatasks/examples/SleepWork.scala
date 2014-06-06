@@ -1,22 +1,27 @@
 package org.ninjatasks.examples
 
 import scala.collection.immutable
-import org.ninjatasks.spi.{ExecutableJob, AbstractJobCreator, JobCreator, RichWork}
+
+import org.ninjatasks.spi._
+import org.ninjatasks.api.WorkConfig
 
 /**
  * Example sleep work object consisting of sleep jobs.
  * Created by Gilad Ber on 5/18/2014.
  */
-class SleepWork(val id: Long, val jobNum: Long, val priority: Int) extends RichWork[Int, Unit, Int]
+class SleepWork(val jobNum: Long, val priority: Int)
 {
-	override val data: Unit = ()
+	self =>
 
-	override val combine: (Int, Int) => Int = (a, b) => a + b
+	val data: Unit = ()
 
-	override val initialResult: Int = 0 //initial value
+	val combine: (Int, Int) => Int = (a, b) => a + b
 
-	override def creator: JobCreator[Int, Unit] = new AbstractJobCreator(this)
+	val initialResult: Int = 0 //initial value
+
+	val creator: JobCreator[Int, Unit] = new AbstractJobCreator[Int, Unit]
 	{
+		override val jobNum = self.jobNum
 		override def create(amount: Long): immutable.Seq[ExecutableJob[Int, Unit]] =
 		{
 			val res = createSeq(amount).toSeq
@@ -28,9 +33,13 @@ class SleepWork(val id: Long, val jobNum: Long, val priority: Int) extends RichW
 		{
 			for (i <- 1 to Math.min(amount.toInt, remaining.toInt)) yield
 			{
-				SleepJob(1000, i.toInt, priority, id)
+				SleepJob(1000, i.toInt, priority)
 			}
 		}
+	}
+
+	def make(): FuncWork[Int, Unit, Int] = {
+		new WorkConfig(creator, data, combine, initialResult).withPriority(priority).build
 	}
 
 }

@@ -2,6 +2,7 @@ package org.ninjatasks.taskmanagement
 
 import scala.concurrent.Future
 import org.ninjatasks.spi.ManagedJob
+import java.util.UUID
 
 /**
  * General interface for all ninjatasks job execution protocol messages.
@@ -12,12 +13,12 @@ sealed trait ManagementProtocolMessage extends Serializable
 /**
  * Father class of all job result type classes.
  */
-sealed abstract class JobResult(val workId: Long, val jobId: Long) extends ManagementProtocolMessage
+sealed abstract class JobResult(val workId: UUID, val jobId: Long) extends ManagementProtocolMessage
 
 /**
  * Father class of all work result type classes.
  */
-sealed abstract class WorkResult(val workId: Long) extends ManagementProtocolMessage
+sealed abstract class WorkResult(val workId: UUID) extends ManagementProtocolMessage
 
 
 import scala.collection.immutable
@@ -84,7 +85,7 @@ private[ninjatasks] case object JobRequest extends ManagementProtocolMessage
  * @tparam T Type of the result.
  */
 private[ninjatasks] case class JobSuccess[T](res: T, override val jobId: Long,
-																						 override val workId: Long) extends JobResult(workId, jobId)
+																						 override val workId: UUID) extends JobResult(workId, jobId)
 
 /**
  * Indicates the failure of an executed job object, along with its reason.
@@ -93,7 +94,7 @@ private[ninjatasks] case class JobSuccess[T](res: T, override val jobId: Long,
  * @param workId ID of the job's owning work object.
  */
 private[ninjatasks] case class JobFailure(reason: Throwable, override val jobId: Long,
-																					override val workId: Long) extends JobResult(workId, jobId)
+																					override val workId: UUID) extends JobResult(workId, jobId)
 
 /**
  * A message consisting of the work object's data payload which is required for the processing
@@ -105,7 +106,7 @@ private[ninjatasks] case class JobFailure(reason: Throwable, override val jobId:
  * @param data Data payload.
  * @tparam T Type of the data payload.
  */
-private[ninjatasks] case class WorkDataMessage[T](workId: Long, data: T) extends ManagementProtocolMessage
+private[ninjatasks] case class WorkDataMessage[T](workId: UUID, data: T) extends ManagementProtocolMessage
 
 /**
  * A message sent to the worker managers signaling that some work object is no longer
@@ -113,7 +114,7 @@ private[ninjatasks] case class WorkDataMessage[T](workId: Long, data: T) extends
  * This notification is published from the work manager.
  * @param workId ID of the cancelled work object.
  */
-private[ninjatasks] case class WorkDataRemoval(workId: Long) extends ManagementProtocolMessage
+private[ninjatasks] case class WorkDataRemoval(workId: UUID) extends ManagementProtocolMessage
 
 /**
  * A request to cancel the processing a work object that is possibly currently being executed.
@@ -121,7 +122,7 @@ private[ninjatasks] case class WorkDataRemoval(workId: Long) extends ManagementP
  * and to the worker managers, which then in turn cancel the on-going related job executions.
  * @param workId ID of the work that is to be cancelled.
  */
-private[ninjatasks] case class WorkCancelRequest(workId: Long) extends ManagementProtocolMessage
+private[ninjatasks] case class WorkCancelRequest(workId: UUID) extends ManagementProtocolMessage
 
 /**
  * A notification that some component has started, and is requesting acknowledgement from
@@ -140,32 +141,28 @@ private[ninjatasks] case object ComponentStartedAck extends ManagementProtocolMe
  * some work request received from the client.
  * @param workId Id of the work on which processing has begun.
  */
-private[ninjatasks] case class WorkStarted(workId: Long) extends ManagementProtocolMessage
+private[ninjatasks] case class WorkStarted(workId: UUID) extends ManagementProtocolMessage
 
 /**
  * A notification that a submitted work object could not be executed due to capacity constraints,
  * and should be resent for processing later on.
- * @param workId Id of the work which was rejected.
  */
-case class WorkRejected(override val workId: Long) extends WorkResult(workId)
+case class WorkRejected(override val workId: UUID) extends WorkResult(workId)
 
 /**
  * A notification that the execution of a work request has finished, along with its result.
- * @param workId ID of the finished work.
  * @param result Result of the execution.
  * @tparam R Type of the result object.
  */
-case class WorkFinished[R](override val workId: Long, result: R) extends WorkResult(workId)
+case class WorkFinished[R](override val workId: UUID, result: R) extends WorkResult(workId)
 
 /**
  * A notification that the execution of a work request has failed, along with its reason.
- * @param workId ID of the failed work.
  * @param reason Reason for failure.
  */
-case class WorkFailed(override val workId: Long, reason: Throwable) extends WorkResult(workId)
+case class WorkFailed(override val workId: UUID, reason: Throwable) extends WorkResult(workId)
 
 /**
  * A notification that the execution of a work request has been cancelled, as per request by a client.
- * @param workId The ID of the cancelled work.
  */
-case class WorkCancelled(override val workId: Long) extends WorkResult(workId)
+case class WorkCancelled(override val workId: UUID) extends WorkResult(workId)

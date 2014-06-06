@@ -4,14 +4,14 @@ import org.ninjatasks.spi.ExecutableJob
 
 object SleepJob
 {
-	def apply(time: Int, id: Long, priority: Int, workId: Long) = new SleepJob(time, id, priority, workId)
+	def apply(time: Int, id: Long, priority: Int) = new SleepJob(time, id, priority)
 }
 
 /**
  *
  * Created by Gilad Ber on 4/15/14.
  */
-class SleepJob(val time: Int, val id: Long, val priority: Int, val workId: Long)
+class SleepJob(val time: Int, val id: Long, val priority: Int)
 	extends ExecutableJob[Int, Unit]
 	with Serializable
 {

@@ -8,6 +8,7 @@ import org.ninjatasks.utils.ManagementConsts.{MGMT_TOPIC_NAME, WORK_TOPIC_NAME, 
 import java.util.concurrent.atomic.AtomicLong
 import org.ninjatasks.spi.ManagedJob
 import org.ninjatasks.api.ManagementNotification
+import java.util.UUID
 
 object JobDelegator
 {
@@ -105,7 +106,7 @@ class JobDelegator extends TopicAwareActor(receiveTopic = MGMT_TOPIC_NAME, targe
 
 	private[this] def postRegisterReceive: Receive = super.receive orElse myReceive
 
-	private[this] def filterJobQueue(workId: Long)
+	private[this] def filterJobQueue(workId: UUID)
 	{
 		val tempQueue = mutable.PriorityQueue[ManagedJob[_, _]]()
 		tempQueue ++= jobQueue

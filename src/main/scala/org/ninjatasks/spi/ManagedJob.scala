@@ -5,11 +5,11 @@ import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.language.implicitConversions
+import java.util.UUID
 
 object ManagedJob
 {
-	def apply[R, D](job: ExecutableJob[R, D]) = new ManagedJob(job)
-	implicit def exec2man[R, D](job: ExecutableJob[R, D]): ManagedJob[R, D] = ManagedJob(job)
+	def apply[R, D](job: ExecutableJob[R, D], uuid: UUID) = new ManagedJob(job, uuid)
 }
 
 /**
@@ -24,8 +24,6 @@ trait ExecutableJob[+R, D]
 {
 	val id: Long
 
-	val workId: Long
-
 	val priority: Int
 
 	@transient var workData: D
@@ -39,7 +37,7 @@ trait ExecutableJob[+R, D]
  * Introduces management and execution related semantics and methods to ordinary job objects.
  * Created by Gilad Ber on 4/15/14.
  */
-private[ninjatasks] class ManagedJob[+R, D](val job: ExecutableJob[R, D])
+private[ninjatasks] class ManagedJob[+R, D](val job: ExecutableJob[R, D], val workId: UUID)
 																					extends Ordered[ManagedJob[_, _]]
 																					with ExecutableJob[R, D]
 																					with Serializable
@@ -47,8 +45,6 @@ private[ninjatasks] class ManagedJob[+R, D](val job: ExecutableJob[R, D])
 	private[this] var cancel: Option[Future[_]] = None
 
 	override val id = job.id
-
-	override val workId = job.workId
 
 	override val priority = job.priority
 
