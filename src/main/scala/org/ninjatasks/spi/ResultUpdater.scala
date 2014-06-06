@@ -9,9 +9,34 @@ trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT]
 	self =>
 
 	val jobs: Jobs[BaseJobT, JobT]
+
+	/**
+	 * A reduce function to compute the final result of this computation.
+	 * This function will be given as input, for a finished job J with result X,
+	 * (currentResult, X), and this value will be the new currentResult of this work.
+	 *
+	 * For example, if our work emits String result and we wished to combine them all into a list,
+	 * we would supply the following combine function:
+	 * (xs: List[String], x: String) => xs + x
+	 *
+	 * In another example, if we wanted to take the sum of all our Long results,
+	 * we would supply the following combine function:
+	 * (sum: Long, x: Long) => sum + x
+	 *
+	 * If for example we would like to take an average of all our Long results, then the combine function
+	 * will need to have an inner counter of how many results it had processed so far. Assuming that counter is n,
+	 * our combine function would be:
+	 * (avg: Long, x: Long) => n = n + 1; (x + (n-1)*avg)/n
+	 */
 	val combine: (BaseResT, BaseJobT) => ResT
+
+	/**
+	 * The initial result of the computation.
+	 */
 	val initialResult: BaseResT
+
 	var result: ResT
+
 	val baseUpdater: BaseResultUpdater[BaseJobT, BaseResT]
 
 	def update(added: BaseJobT): Unit = {
