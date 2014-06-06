@@ -21,30 +21,29 @@ trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT]
 		}
 	}
 
-	private[ninjatasks] def convert(result: BaseResT): ResT
-
 	def map[U](f: ResT => U): ResultUpdater[BaseJobT, JobT, BaseResT, U] = {
 		val mapCombine: (BaseResT, BaseJobT) => U = (r, j) => f(self.combine(r, j))
-		val mapConvert: BaseResT => U = r => f(convert(r))
-		Updater(jobs, mapCombine, mapConvert, this)
+		Updater(jobs, mapCombine, f(result), this)
 	}
 
 	def mapJobs[U](f: JobT => U)(combiner: (ResT, U) => ResT): ResultUpdater[BaseJobT, U, BaseResT, ResT] = {
-		Updater.mapped(jobs.map(f), combiner, convert, this)
+		Updater.mapped(jobs.map(f), combiner, result, this)
 	}
 
 	def filter(p: JobT => Boolean): ResultUpdater[BaseJobT, JobT, BaseResT, ResT] = {
-		Updater(jobs.filter(p), combine, convert, this)
+		Updater(jobs.filter(p), combine, result, this)
 	}
 
-//	def fold[U](f: (ResT, U) => U)(acc: U): ResultUpdater[BaseJobT, JobT, BaseResT, U]
+	def fold[U](f: (U, JobT) => U)(acc: U): ResultUpdater[BaseJobT, JobT, BaseResT, U] = {
+		Updater.mapped(jobs, f, acc, this)
+	}
+
 	def foreach[U](f: JobT => U): ResultUpdater[BaseJobT, JobT, BaseResT, ResT] = {
 		val foreachCombiner: (BaseResT, BaseJobT) => ResT = (r,j) => {
-			val res = self.combine(r, j)
 			f(jobs.transform(j))
-			res
+			self.combine(r, j)
 		}
-		Updater(jobs, foreachCombiner, convert, this)
+		Updater(jobs, foreachCombiner, result, this)
 	}
 }
 
@@ -56,15 +55,15 @@ object ResultUpdater
 object Updater {
 	def apply[J, JF, R, RF](jobs: Jobs[J, JF],
 													combine: (R, J) => RF,
-													convert: R => RF,
+													initialMappedResult: RF,
 													other: ResultUpdater[J, _, R, _]): Updater[J, JF, R, RF] =
-		new Updater(jobs, combine, other.initialResult, other.baseUpdater, convert)
+		new Updater(jobs, combine, other.initialResult, other.baseUpdater, initialMappedResult)
 
 	def mapped[J, JF, R, RF](jobs: Jobs[J, JF],
 													jobCombine: (RF, JF) => RF,
-													convert: R => RF,
+													initialMappedResult: RF,
 													other: ResultUpdater[J, _, R, _]): JobMappedUpdater[J, JF, R, RF] =
-		new JobMappedUpdater(jobs, other.initialResult, other.baseUpdater, convert, jobCombine)
+		new JobMappedUpdater(jobs, other.initialResult, other.baseUpdater, initialMappedResult, jobCombine)
 
 }
 
@@ -72,27 +71,23 @@ class Updater[J, JF, R, RF](override val jobs: Jobs[J, JF],
 														 override val combine: (R, J) => RF,
 														 override val initialResult: R,
 														 override val baseUpdater: BaseResultUpdater[J, R],
-														 convertFunc: R => RF)
+														 override var result: RF)
 														 extends ResultUpdater[J, JF, R, RF]
 {
-	override def convert(r: R): RF = convertFunc(r)
-	override var result: RF = convert(initialResult)
+
 }
 
 class JobMappedUpdater[J, JF, R, RF](override val jobs: Jobs[J, JF],
 																			override val initialResult: R,
 																			override val baseUpdater: BaseResultUpdater[J, R],
-																			convertFunc: R => RF,
+																			override var result: RF,
 																			val jobCombine: (RF, JF) => RF)
 																			extends ResultUpdater[J, JF, R, RF]
 {
-	override def convert(r: R): RF = convertFunc(r)
-	override var result: RF = convert(initialResult)
 
 	override val combine: (R, J) => RF = (r, j) => {
-		val res = jobCombine(result, jobs.transform(j))
-		result = res
-		res
+		result = jobCombine(result, jobs.transform(j))
+		result
 	}
 }
 
@@ -103,7 +98,6 @@ class BaseResultUpdater[JobT, ResT](override val combine: (ResT, JobT) => ResT,
 	self =>
 
 	override val baseUpdater = self
-	override def convert(r: ResT) = r
 	override val jobs: Jobs[JobT, JobT] = Jobs[JobT]
 	override var result: ResT = initialResult
 

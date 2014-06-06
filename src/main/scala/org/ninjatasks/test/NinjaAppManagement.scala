@@ -24,12 +24,14 @@ object NinjaAppManagement
 		JobManagementSubsystem.start()
 		val c: (Int, Int) => Int = (x, y) => (1 + x) *(1 + y)
 		val s: (Int, String) => Int = (i, s) => i + s.length
+		val coll: (List[String], String) => List[String] = (list, s) => list ::: (s :: Nil)
 		val work = new SleepWork(3, 2).make().
 			filter(x => x > 0).
 			mapJobs(x => 5 * x, c).
 			mapJobs(_.toString, s).
-			map(x => "Length of all results combined is " + x).
-			foreach(x => println(s"received $x"))
+			fold(coll)(Nil)
+//			map(x => "Length of all results combined is " + x).
+
 		val reporter = system.actorOf(Props(classOf[WorkReportingActor[Int, Unit, Int]], work), "reporter")
 		reporter ! "send"
 	}

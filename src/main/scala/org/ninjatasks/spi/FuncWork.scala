@@ -40,6 +40,12 @@ trait FuncWork[JobT, DataT, ResT]
 		val foreachUpdater = updater.foreach(f)
 		NinjaWork(this, foreachUpdater, creator)
 	}
+
+	def fold[U](f: (U, JobT) => U)(acc: U): FuncWork[JobT, DataT, U] =
+	{
+		val foldUpdater = updater.fold(f)(acc)
+		NinjaWork(this, foldUpdater, creator)
+	}
 }
 
 object NinjaWork
