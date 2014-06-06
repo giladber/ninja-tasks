@@ -37,7 +37,7 @@ import java.util.UUID
  * @tparam DataT The type of work-related data which is supplied to the job objects.
  * @tparam ResT The type of the final result obtained by the computation of this work.
  */
-trait FuncWork[JobT, DataT, ResT]
+trait FuncWork[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
 {
 	self =>
 
@@ -83,7 +83,7 @@ trait FuncWork[JobT, DataT, ResT]
 	 * @tparam U type of the new intermediate results
 	 * @return A new work object which maps the results of job objects by the mapping function.
 	 */
-	def mapJobs[U](f: JobT => U, combiner: (ResT, U) => ResT): FuncWork[U, DataT, ResT] = {
+	def mapJobs[U](f: JobT => U)(combiner: (ResT, U) => ResT): FuncWork[U, DataT, ResT] = {
 		val mappedUpdater = updater.mapJobs(f)(combiner)
 		NinjaWork(this, mappedUpdater, creator)
 	}

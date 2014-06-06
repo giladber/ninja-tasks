@@ -4,7 +4,7 @@ package org.ninjatasks.spi
  * Result updater for work objects.
  * Created by Gilad Ber on 6/5/2014.
  */
-trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT]
+trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT] extends WorkOps[JobT, ResT]
 {
 	self =>
 

@@ -27,10 +27,10 @@ object NinjaAppManagement
 		val coll: (List[String], String) => List[String] = (list, s) => list ::: (s :: Nil)
 		val work = new SleepWork(3, 2).make().
 			filter(x => x > 0).
-			mapJobs(x => 5 * x, c).
-			mapJobs(_.toString, s).
-			fold(coll)(Nil)
-//			map(x => "Length of all results combined is " + x).
+			mapJobs(x => 5 * x)(c).
+			mapJobs(_.toString)(s).
+			fold(coll)(Nil).
+			map(x => "Length of all results combined is " + x)
 
 		val reporter = system.actorOf(Props(classOf[WorkReportingActor[Int, Unit, Int]], work), "reporter")
 		reporter ! "send"
