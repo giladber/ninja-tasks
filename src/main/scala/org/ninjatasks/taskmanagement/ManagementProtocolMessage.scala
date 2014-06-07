@@ -1,7 +1,7 @@
 package org.ninjatasks.taskmanagement
 
 import scala.concurrent.Future
-import org.ninjatasks.spi.ManagedJob
+import org.ninjatasks.spi.{FuncWork, ManagedJob}
 import java.util.UUID
 
 /**
@@ -166,3 +166,8 @@ case class WorkFailed(override val workId: UUID, reason: Throwable) extends Work
  * A notification that the execution of a work request has been cancelled, as per request by a client.
  */
 case class WorkCancelled(override val workId: UUID) extends WorkResult(workId)
+
+private[ninjatasks] case class CombineRequest[A, B, C, D](work: FuncWork[A, B, C], result: JobSuccess[D])
+	extends ManagementProtocolMessage
+
+private[ninjatasks] case class CombineAck(workId: UUID) extends ManagementProtocolMessage

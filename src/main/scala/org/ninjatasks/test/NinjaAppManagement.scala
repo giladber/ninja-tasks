@@ -25,9 +25,9 @@ object NinjaAppManagement
 		val c: (Int, Int) => Int = (x, y) => (1 + x) *(1 + y)
 		val s: (Int, String) => Int = (i, s) => i + s.length
 		val coll: (List[String], String) => List[String] = (list, s) => list ::: (s :: Nil)
-		val work = new SleepWork(3, 2).make().
-			filter(x => x > 0).
-			mapJobs(x => 5 * x)(c).
+		val work = new SleepWork(1, 2).make().
+			filter(x => x < 0).
+			mapJobs(x => x + 5)(c).
 			mapJobs(_.toString)(s).
 			fold(coll)(Nil).
 			map(x => "Length of all results combined is " + x)

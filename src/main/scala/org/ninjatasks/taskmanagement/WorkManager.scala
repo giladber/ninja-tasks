@@ -1,6 +1,6 @@
 package org.ninjatasks.taskmanagement
 
-import akka.actor.{Props, ActorLogging, Actor}
+import akka.actor._
 import org.ninjatasks.utils.ManagementConsts._
 import scala.collection.mutable
 import akka.contrib.pattern.DistributedPubSubExtension
@@ -9,8 +9,12 @@ import scala.annotation.tailrec
 import org.ninjatasks.utils.ManagementConsts
 import org.ninjatasks.spi._
 import java.util.UUID
+import akka.pattern.ask
+import scala.concurrent.duration._
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
+import akka.routing.RoundRobinPool
 import org.ninjatasks.api.ManagementNotification
+import akka.actor.SupervisorStrategy.{Restart, Escalate}
 
 /**
  * Class responsible for managing all work-related data - storing this data and producing job sets for processing.
@@ -24,6 +28,15 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	 */
 	private[this] val delegator = context.actorOf(Props[JobDelegator], JOB_DELEGATOR_ACTOR_NAME)
 	context.actorOf(Props(classOf[JobExtractor], self, delegator), JOB_EXTRACTOR_ACTOR_NAME)
+
+	private[this] val routerStrategy = OneForOneStrategy(maxNrOfRetries = 2, withinTimeRange = 2 seconds)
+	{
+		case _: ActorInitializationException => Escalate
+		case _: Exception => Restart
+	}
+	private[this] val combineRouter = context.actorOf(RoundRobinPool(2).
+																											withSupervisorStrategy(routerStrategy).
+																											props(Props[CombinePerformer]), "combiners-router")
 
 	private[this] val mediator = DistributedPubSubExtension(context.system).mediator
 
@@ -103,9 +116,15 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		log.info("received work with id {}", work.id)
 	}
 
-	private[this] def receiveResult[T](work: FuncWork[_, _, _], js: JobSuccess[_]) =
+	private[this] def receiveResult(work: FuncWork[_, _, _], js: JobSuccess[_]) =
 	{
-		work.update(js.res.asInstanceOf[work.baseJobType])
+		import scala.concurrent.ExecutionContext.Implicits.global
+
+		val f = combineRouter.ask(CombineRequest(work, js))(500.millis)
+		f foreach {
+			case ack: CombineAck => //do nothing, actually...
+			case e: Exception => self ! WorkCancelRequest(work.id)
+		}
 	}
 
 	private[this] def removeWork(workId: UUID, msg: WorkResult) =
