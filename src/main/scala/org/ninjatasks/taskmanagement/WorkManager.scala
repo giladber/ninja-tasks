@@ -34,7 +34,8 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		case _: ActorInitializationException => Escalate
 		case _: Exception => Restart
 	}
-	private[this] val combineRouter = context.actorOf(RoundRobinPool(2).
+	private[this] val numCombiners = config.getInt("ninja.work-manager.num-combiners")
+	private[this] val combineRouter = context.actorOf(RoundRobinPool(numCombiners).
 																											withSupervisorStrategy(routerStrategy).
 																											props(Props[CombinePerformer]), "combiners-router")
 
