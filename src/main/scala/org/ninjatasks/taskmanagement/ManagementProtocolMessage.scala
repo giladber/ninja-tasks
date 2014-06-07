@@ -167,7 +167,20 @@ case class WorkFailed(override val workId: UUID, reason: Throwable) extends Work
  */
 case class WorkCancelled(override val workId: UUID) extends WorkResult(workId)
 
+/**
+ * A request to perform a combine operation on a work object and its newly received job result.
+ * @param work Work to combine into
+ * @param result Job result to combine
+ * @tparam A Type of work's job result
+ * @tparam B Type of work's data object
+ * @tparam C Type of work's result
+ * @tparam D Type of result in job success message
+ */
 private[ninjatasks] case class CombineRequest[A, B, C, D](work: FuncWork[A, B, C], result: JobSuccess[D])
 	extends ManagementProtocolMessage
 
+/**
+ * An acknowledge message sent to notify that a combine operation was successful.
+ * @param workId ID of the work for which combination was successful
+ */
 private[ninjatasks] case class CombineAck(workId: UUID) extends ManagementProtocolMessage
