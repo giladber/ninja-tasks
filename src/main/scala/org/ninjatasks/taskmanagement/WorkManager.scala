@@ -1,20 +1,36 @@
 package org.ninjatasks.taskmanagement
 
 import akka.actor._
-import org.ninjatasks.utils.ManagementConsts._
-import scala.collection.mutable
-import akka.contrib.pattern.DistributedPubSubExtension
-import java.util.concurrent.atomic.AtomicLong
-import scala.annotation.tailrec
-import org.ninjatasks.utils.ManagementConsts
-import org.ninjatasks.spi._
-import java.util.UUID
-import akka.pattern.ask
-import scala.concurrent.duration._
-import akka.contrib.pattern.DistributedPubSubMediator.Publish
-import akka.routing.RoundRobinPool
-import org.ninjatasks.api.ManagementNotification
 import akka.actor.SupervisorStrategy.{Restart, Escalate}
+import akka.contrib.pattern.DistributedPubSubExtension
+import akka.contrib.pattern.DistributedPubSubMediator.Publish
+import akka.pattern.ask
+import akka.routing.RoundRobinPool
+import java.util.concurrent.atomic.AtomicLong
+import java.util.UUID
+import org.ninjatasks.utils.ManagementConsts._
+import org.ninjatasks.api.ManagementNotification
+import org.ninjatasks.spi._
+import scala.annotation.tailrec
+import scala.collection.mutable
+import scala.concurrent.duration._
+import scala.language.postfixOps
+
+
+object WorkManager
+{
+	private[ninjatasks] val routerStrategy = OneForOneStrategy(maxNrOfRetries = 2, withinTimeRange = 2 seconds)
+	{
+		case _: ActorInitializationException => Escalate
+		case _: Exception => Restart
+	}
+	private[ninjatasks] val numCombiners = config.getInt("ninja.work-manager.num-combiners")
+	private[ninjatasks] val maxWorkQueueSize = config.getLong("ninja.work-manager.max-work-queue-size")
+	private[ninjatasks] val maxCombineLatency = config.getLong("ninja.work-manager.max-combine-latency")
+	private[ninjatasks] val combineDuration = maxCombineLatency.millis
+}
+
+import WorkManager._
 
 /**
  * Class responsible for managing all work-related data - storing this data and producing job sets for processing.
@@ -29,12 +45,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	private[this] val delegator = context.actorOf(Props[JobDelegator], JOB_DELEGATOR_ACTOR_NAME)
 	context.actorOf(Props(classOf[JobExtractor], self, delegator), JOB_EXTRACTOR_ACTOR_NAME)
 
-	private[this] val routerStrategy = OneForOneStrategy(maxNrOfRetries = 2, withinTimeRange = 2 seconds)
-	{
-		case _: ActorInitializationException => Escalate
-		case _: Exception => Restart
-	}
-	private[this] val numCombiners = config.getInt("ninja.work-manager.num-combiners")
+
 	private[this] val combineRouter = context.actorOf(RoundRobinPool(numCombiners).
 																											withSupervisorStrategy(routerStrategy).
 																											props(Props[CombinePerformer]), "combiners-router")
@@ -60,7 +71,6 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	 */
 	private[this] val serialProducer = new AtomicLong()
 
-	private[this] val maxWorkQueueSize = ManagementConsts.config.getLong("ninja.work-manager.max-work-queue-size")
 
 	override def preStart() {
 		lookupBus.subscribe(self, JOBS_TOPIC_PREFIX)
@@ -121,7 +131,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	{
 		import scala.concurrent.ExecutionContext.Implicits.global
 
-		val f = combineRouter.ask(CombineRequest(work, js))(500.millis)
+		val f = combineRouter.ask(CombineRequest(work, js))(combineDuration)
 		f foreach {
 			case ack: CombineAck => //do nothing, actually...
 			case e: Exception => self ! WorkCancelRequest(work.id)

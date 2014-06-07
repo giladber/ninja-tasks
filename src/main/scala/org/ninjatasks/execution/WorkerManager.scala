@@ -86,7 +86,7 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 		log.debug("Sent {} job requests to job delegator", requestQueue.size)
 	}
 
-	override def supervisorStrategy: SupervisorStrategy = OneForOneStrategy(maxNrOfRetries = 2,
+	override val supervisorStrategy: SupervisorStrategy = OneForOneStrategy(maxNrOfRetries = 2,
 																																					withinTimeRange = 2 seconds)
 	{
 		case _: ActorInitializationException => Stop
