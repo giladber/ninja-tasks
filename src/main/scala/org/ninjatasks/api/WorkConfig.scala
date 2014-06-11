@@ -1,6 +1,6 @@
 package org.ninjatasks.api
 
-import org.ninjatasks.spi.{NinjaWork, FuncWork, JobCreator}
+import org.ninjatasks.spi.{ExecutableJob, NinjaWork, FuncWork, JobCreator}
 import org.ninjatasks.utils.ManagementConsts
 
 /**
@@ -18,9 +18,15 @@ case class WorkConfig[JobT, DataT, ResT](creator: JobCreator[JobT, DataT], data:
 	}
 
 	def build: FuncWork[JobT, DataT, ResT] = NinjaWork(priority, data, creator, combine, initialResult)
+
 }
 
 object WorkConfig
 {
 	val defaultPriority = ManagementConsts.config.getInt("ninja.work.default-priority")
+
+	def ofJob[T, D](job: ExecutableJob[T, D], initialResult: T, data: D) = {
+		new WorkConfig[T, D, T](JobCreator(job), data, (base, jobRes) => jobRes, initialResult).
+			build
+	}
 }

@@ -44,6 +44,17 @@ abstract class AbstractJobCreator[T, D] extends JobCreator[T, D]
 	protected def updateProduced(created: Long): Unit = produced = produced + created
 }
 
+class SingletonJobCreator[T, D](job: ExecutableJob[T, D]) extends AbstractJobCreator[T, D] {
+	override val jobNum: Long = 1
+
+	override def create(amount: Long) = {
+		amount match {
+			case x if x > 0 && remaining == 1 => List(job).toSeq
+			case other => immutable.Seq.empty
+		}
+	}
+}
+
 object JobSetIterator
 {
 	def apply[T, D](producer: JobCreator[T, D], serial: Long, workId: UUID, priority: Int) = new JobSetIterator(producer, serial, workId, priority)
@@ -71,4 +82,8 @@ class JobSetIterator[T, D](val producer: JobCreator[T, D], val serial: Long, val
 			case x if x != 0 => x
 			case x if x == 0 => (that.serial - this.serial).toInt
 		}
+}
+
+object JobCreator {
+	def apply[T, D](job: ExecutableJob[T, D]): JobCreator[T, D] = new SingletonJobCreator(job)
 }
