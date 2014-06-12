@@ -23,21 +23,29 @@ Since both subsystems can easily become bottlenecks to one another if executed f
 Work Architecture
 -----------------
 
-The job management (henceforth simply management) subsystem receives work items which have a simple hierarchy - they have a container, a 'work' object, which contains 'job' objects - which in turn are the single most basic execution unit. Work objects contain several important data items, such as the number of underlying job objects, result reduction function, user-supplied priority and more.
+The job management (henceforth simply management) subsystem receives work items which have a simple hierarchy - they have a container (a 'work' object), which contains 'job' objects - which in turn are the single most basic execution unit. Work objects contain several important data items, such as the number of underlying job objects, result reduction function, user-supplied priority and more.
 Job objects, on the other hand, are simply the smallest unit of execution, and basically their only purpose is to be given an input and give back an output.
 
 SPI
 ---
 
-There are some basic interfaces which need to be implemented by the user in order to use the distributed execution functionality. All of these interfaces (traits) are in the org.ninjatasks.spi package.
+There are a couple of basic interfaces which need to be implemented by the user in order to use the distributed execution functionality. All of these interfaces (traits) are in the org.ninjatasks.spi package.
 * ExecutableJob - this trait represents the job objects described above. Its implementations must specify execution logic along with required input data.
-* Work - This trait represents the work objects described above. Its implementations must specify the input given to job objects, along with a result reduction function, an initial result, and the number of underlying tasks to be processed.
-* JobCreator - this trait is required in order to implement a lazy job creation process, so that the management subsystem can be run in machines without requiring huge amounts of RAM to support big work requests. It is queried in a work object and is queried for jobs whenever there is enough space and time to process more.
+* JobCreator - this trait is required in order to implement a lazy job creation process, so that the management subsystem can be run in machines without requiring huge amounts of memory to support big work requests. It is queried for jobs whenever there is enough space and time to process more.
+
+Creation of work objects (implemented by the Work trait) will be performed using the WorkConfig builder class, which requires as input the following:
+* A JobCreator object
+* The data required for the computation of jobs
+* A reduction function for the results
+* (Potentially) priority
+* The initial result of the computation
+The result given from the WorkConfig class is an instance of Work, which represents the work container mentioned above, and may be sent to the job management subsystem for execution.
+
 
 Functional Operations
 ---------------------
 
-Work objects may be wrapped by the user in a RichWork interface, providing functional operations such as map, flatMap and filter to both the work's result and to its underlying job objects. This rich API allows for a very easy way to manipulate work objects and create multi-step computations without having to worry about the execution mechanism at all.
+The Work trait provides functional operations such as map, flatMap, fold, filter and more for the work's jobs and the work result itself. This rich API allows for a very easy and fluent way to manipulate work objects and create multi-step computations without having to worry about the execution mechanism.
 
 
 Examples
