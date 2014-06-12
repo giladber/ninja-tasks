@@ -38,7 +38,7 @@ class SleepWork(val jobNum: Long, val priority: Int)
 		}
 	}
 
-	def make(): FuncWork[Int, Unit, Int] = {
+	def make(): Work[Int, Unit, Int] = {
 		new WorkConfig(creator, data, combine, initialResult).withPriority(priority).build
 	}
 

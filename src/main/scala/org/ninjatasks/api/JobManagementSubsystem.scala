@@ -12,7 +12,7 @@ import scala.language.postfixOps
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.reflect.ClassTag
 import akka.event.{EventBus, LookupClassification}
-import org.ninjatasks.spi.FuncWork
+import org.ninjatasks.spi.Work
 import java.util.UUID
 import org.ninjatasks.utils.ManagementConsts
 import org.ninjatasks.taskmanagement.WorkCancelRequest
@@ -46,9 +46,9 @@ object JobManagementSubsystem
 	 * @tparam R work final result type
 	 * @return a future indicating either the failure reason or the work's result
 	 */
-	def execute[T, D, R](work: FuncWork[T, D, R])(implicit timeout: Duration): Future[Either[WorkResult, R]] =
+	def execute[T, D, R](work: Work[T, D, R])(implicit timeout: Duration): Future[Either[WorkResult, R]] =
 	{
-		val message: (FuncWork[T, D, R], Duration) = (work, timeout)
+		val message: (Work[T, D, R], Duration) = (work, timeout)
 		val submitFuture: Future[Any] = executor.ask(message)(50 millis)
 
 		type TypedWorkResult = WorkResultFuture[R]
@@ -77,7 +77,7 @@ class WorkExecutor extends Actor with ActorLogging
 	private[this] val promises = mutable.Map[UUID, WorkPromise[_ <: Any]]()
 	private[this] val lookupBus = ManagementConsts.lookupBus
 
-	private[this] type WorkAndTimeout = (FuncWork[_, _, _], FiniteDuration)
+	private[this] type WorkAndTimeout = (Work[_, _, _], FiniteDuration)
 
 	override def preStart() {
 		lookupBus.subscribe(self, WORK_TOPIC_PREFIX)
@@ -139,7 +139,7 @@ class WorkExecutor extends Actor with ActorLogging
 	}
 
 
-	private[this] def send[R](work: FuncWork[_, _, R])(implicit timeout: FiniteDuration): Future[Either[WorkResult, R]] =
+	private[this] def send[R](work: Work[_, _, R])(implicit timeout: FiniteDuration): Future[Either[WorkResult, R]] =
 	{
 		def scheduler = context.system.scheduler
 		val id = work.id

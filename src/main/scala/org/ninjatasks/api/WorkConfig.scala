@@ -1,6 +1,6 @@
 package org.ninjatasks.api
 
-import org.ninjatasks.spi.{ExecutableJob, NinjaWork, FuncWork, JobCreator}
+import org.ninjatasks.spi.{ExecutableJob, NinjaWork, Work, JobCreator}
 import org.ninjatasks.utils.ManagementConsts
 
 /**
@@ -17,7 +17,7 @@ case class WorkConfig[JobT, DataT, ResT](creator: JobCreator[JobT, DataT], data:
 		this
 	}
 
-	def build: FuncWork[JobT, DataT, ResT] = NinjaWork(priority, data, creator, combine, initialResult)
+	def build: Work[JobT, DataT, ResT] = NinjaWork(priority, data, creator, combine, initialResult)
 
 }
 

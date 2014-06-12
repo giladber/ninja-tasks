@@ -37,7 +37,7 @@ import java.util.UUID
  * @tparam DataT The type of work-related data which is supplied to the job objects.
  * @tparam ResT The type of the final result obtained by the computation of this work.
  */
-trait FuncWork[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
+trait Work[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
 {
 	self =>
 
@@ -83,7 +83,7 @@ trait FuncWork[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
 	 * @tparam U type of the new intermediate results
 	 * @return A new work object which maps the results of job objects by the mapping function.
 	 */
-	def mapJobs[U](f: JobT => U)(combiner: (ResT, U) => ResT): FuncWork[U, DataT, ResT] = {
+	def mapJobs[U](f: JobT => U)(combiner: (ResT, U) => ResT): Work[U, DataT, ResT] = {
 		val mappedUpdater = updater.mapJobs(f)(combiner)
 		NinjaWork(this, mappedUpdater, creator)
 	}
@@ -94,7 +94,7 @@ trait FuncWork[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
 	 * @tparam U target result type
 	 * @return A new work instance with its result mapped by the given function
 	 */
-	def map[U](f: ResT => U): FuncWork[JobT, DataT, U] = {
+	def map[U](f: ResT => U): Work[JobT, DataT, U] = {
 		val mappedUpdater = updater.map(f)
 		NinjaWork(this, mappedUpdater, creator)
 	}
@@ -104,7 +104,7 @@ trait FuncWork[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
 	 * @param p predicate to filter by
 	 * @return A new RichWork object which ignores job results according to the input filter.
 	 */
-	def filter(p: JobT => Boolean): FuncWork[JobT, DataT, ResT] = {
+	def filter(p: JobT => Boolean): Work[JobT, DataT, ResT] = {
 		val filteredUpdater = updater.filter(p)
 		NinjaWork(this, filteredUpdater, creator)
 	}
@@ -116,12 +116,12 @@ trait FuncWork[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
 	 * @tparam U function result type (is ignored)
 	 * @return a new work object which will apply the input function to each job result on reduction
 	 */
-	def foreach[U](f: JobT => U): FuncWork[JobT, DataT, ResT] = {
+	def foreach[U](f: JobT => U): Work[JobT, DataT, ResT] = {
 		val foreachUpdater = updater.foreach(f)
 		NinjaWork(this, foreachUpdater, creator)
 	}
 
-	def fold[U](f: (U, JobT) => U)(acc: U): FuncWork[JobT, DataT, U] =
+	def fold[U](f: (U, JobT) => U)(acc: U): Work[JobT, DataT, U] =
 	{
 		val foldUpdater = updater.fold(f)(acc)
 		NinjaWork(this, foldUpdater, creator)
@@ -130,7 +130,7 @@ trait FuncWork[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
 
 object NinjaWork
 {
-	def apply[J, JF, D, R, RF](work: FuncWork[_, D, _], updater: ResultUpdater[J, JF, R, RF], creator: JobCreator[J, D]) = {
+	def apply[J, JF, D, R, RF](work: Work[_, D, _], updater: ResultUpdater[J, JF, R, RF], creator: JobCreator[J, D]) = {
 		new NinjaWork(work.priority, work.data, updater, creator)
 	}
 
@@ -143,7 +143,7 @@ class NinjaWork[J, JF, D, R, RF](override val priority: Int,
 																 override val data: D,
 																 override val updater: ResultUpdater[J, JF, R, RF],
 																 override val creator: JobCreator[J, D])
-																extends FuncWork[JF, D, RF]
+																extends Work[JF, D, RF]
 {
 	private[ninjatasks] type baseJobType = J
 	private[ninjatasks] type baseResType = R

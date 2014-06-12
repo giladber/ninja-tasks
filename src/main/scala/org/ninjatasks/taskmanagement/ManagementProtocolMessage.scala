@@ -1,7 +1,7 @@
 package org.ninjatasks.taskmanagement
 
 import scala.concurrent.Future
-import org.ninjatasks.spi.{FuncWork, ManagedJob}
+import org.ninjatasks.spi.{Work, ManagedJob}
 import java.util.UUID
 
 /**
@@ -176,7 +176,7 @@ case class WorkCancelled(override val workId: UUID) extends WorkResult(workId)
  * @tparam C Type of work's result
  * @tparam D Type of result in job success message
  */
-private[ninjatasks] case class CombineRequest[A, B, C, D](work: FuncWork[A, B, C], result: JobSuccess[D])
+private[ninjatasks] case class CombineRequest[A, B, C, D](work: Work[A, B, C], result: JobSuccess[D])
 	extends ManagementProtocolMessage
 
 /**

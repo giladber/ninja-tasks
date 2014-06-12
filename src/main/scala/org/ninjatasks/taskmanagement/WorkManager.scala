@@ -63,7 +63,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	 * number of tasks remaining to be processed.
 	 * The key of the map is the work object's id.
 	 */
-	private[this] val workData = new mutable.HashMap[UUID, (FuncWork[_, _, _], Long)]
+	private[this] val workData = new mutable.HashMap[UUID, (Work[_, _, _], Long)]
 
 	/**
 	 * Atomic object which produces serial numbers for incoming work objects.
@@ -82,7 +82,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 
 	override def receive =
 	{
-		case work: FuncWork[_, _, _] =>
+		case work: Work[_, _, _] =>
 			if (pendingWork.size >= maxWorkQueueSize) {
 				rejectWork(work.id)
 			}	else {
@@ -117,7 +117,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	}
 
 
-	def acceptWork(work: FuncWork[_, _, _])
+	def acceptWork(work: Work[_, _, _])
 	{
 		val creator = work.creator
 		workData.put(work.id, (work, creator.jobNum))
@@ -127,7 +127,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		log.info("received work with id {}", work.id)
 	}
 
-	private[this] def receiveResult(work: FuncWork[_, _, _], js: JobSuccess[_]) =
+	private[this] def receiveResult(work: Work[_, _, _], js: JobSuccess[_]) =
 	{
 		import scala.concurrent.ExecutionContext.Implicits.global
 

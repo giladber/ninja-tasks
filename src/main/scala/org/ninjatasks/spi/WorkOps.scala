@@ -19,4 +19,8 @@ private[ninjatasks] trait WorkOps[JobT, ResT]
 	def mapJobs[U](f: JobT => U)(combiner: (ResT, U) => ResT): WorkOps[U, ResT]
 
 	def map[U](f: ResT => U): WorkOps[JobT, U]
+
+//	def flatMap[J, U](f: ResT => WorkOps[J, U]): WorkOps[J, U]
+//
+//	def flatMapJobs[J, U](f: JobT => WorkOps[J, U]): WorkOps[J, U]
 }

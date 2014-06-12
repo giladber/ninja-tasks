@@ -7,7 +7,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import org.ninjatasks.api.JobManagementSubsystem
 import JobManagementSubsystem.WorkResultFuture
-import org.ninjatasks.spi.FuncWork
+import org.ninjatasks.spi.Work
 import org.ninjatasks.api.JobManagementSubsystem
 
 /**
@@ -37,7 +37,7 @@ object NinjaAppManagement
 	}
 }
 
-class WorkReportingActor[T, D, R](work: FuncWork[T, D, R]) extends Actor with ActorLogging
+class WorkReportingActor[T, D, R](work: Work[T, D, R]) extends Actor with ActorLogging
 {
 
 	def send(): Unit = JobManagementSubsystem.executor !(work, 20.seconds)
