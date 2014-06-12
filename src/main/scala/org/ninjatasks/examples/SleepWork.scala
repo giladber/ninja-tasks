@@ -5,6 +5,12 @@ import scala.collection.immutable
 import org.ninjatasks.spi._
 import org.ninjatasks.api.WorkConfig
 
+object SleepWork {
+	def apply(jobNum: Long, priority: Int): Work[Int, Unit, Int] = {
+		new SleepWork(jobNum, priority).make()
+	}
+}
+
 /**
  * Example sleep work object consisting of sleep jobs.
  * Created by Gilad Ber on 5/18/2014.
@@ -12,8 +18,6 @@ import org.ninjatasks.api.WorkConfig
 class SleepWork(val jobNum: Long, val priority: Int)
 {
 	self =>
-
-	val data: Unit = ()
 
 	val combine: (Int, Int) => Int = (a, b) => a + b
 
@@ -39,7 +43,8 @@ class SleepWork(val jobNum: Long, val priority: Int)
 	}
 
 	def make(): Work[Int, Unit, Int] = {
-		new WorkConfig(creator, data, combine, initialResult).withPriority(priority).build
+		new WorkConfig(creator, combine, initialResult).
+			withPriority(priority).build
 	}
 
 }

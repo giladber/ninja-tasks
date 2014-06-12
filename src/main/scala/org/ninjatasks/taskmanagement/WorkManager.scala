@@ -116,13 +116,18 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 			throw new IllegalArgumentException(s"Received unexpected message: $other")
 	}
 
+	def publishData(work: Work[_, _, _]): Unit = {
+		work.data foreach {
+			x => mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(work.id, x))
+		}
+	}
 
 	def acceptWork(work: Work[_, _, _])
 	{
 		val creator = work.creator
 		workData.put(work.id, (work, creator.jobNum))
 		pendingWork += JobSetIterator(creator, serialProducer.getAndIncrement, work.id, work.priority)
-		mediator ! Publish(WORK_TOPIC_NAME, WorkDataMessage(work.id, work.data))
+		publishData(work)
 		sender() ! WorkStarted(work.id)
 		log.info("received work with id {}", work.id)
 	}

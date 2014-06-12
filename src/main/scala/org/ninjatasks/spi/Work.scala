@@ -67,7 +67,7 @@ trait Work[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
 	 * It should be noted that this object will most likely be shared between multiple job objects,
 	 * so it is essential that either it is thread-safe, or that all jobs access it in a synchronized fashion.
 	 */
-	val data: DataT
+	val data: Option[DataT]
 
 	/**
 	 * Job objects factory, for lazy creation of jobs when required and when
@@ -128,19 +128,19 @@ trait Work[JobT, DataT, ResT] extends WorkOps[JobT, ResT]
 	}
 }
 
-object NinjaWork
+private[ninjatasks] object NinjaWork
 {
 	def apply[J, JF, D, R, RF](work: Work[_, D, _], updater: ResultUpdater[J, JF, R, RF], creator: JobCreator[J, D]) = {
 		new NinjaWork(work.priority, work.data, updater, creator)
 	}
 
-	def apply[J, D, R](priority: Int, data: D, creator: JobCreator[J, D], combine: (R, J) => R, initialResult: R) = {
+	def apply[J, D, R](priority: Int, data: Option[D], creator: JobCreator[J, D], combine: (R, J) => R, initialResult: R) = {
 		new NinjaWork(priority, data, ResultUpdater(combine, initialResult), creator)
 	}
 }
 
 class NinjaWork[J, JF, D, R, RF](override val priority: Int,
-																 override val data: D,
+																 override val data: Option[D],
 																 override val updater: ResultUpdater[J, JF, R, RF],
 																 override val creator: JobCreator[J, D])
 																extends Work[JF, D, RF]
