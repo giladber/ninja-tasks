@@ -139,7 +139,7 @@ private[ninjatasks] object NinjaWork
 	}
 }
 
-class NinjaWork[J, JF, D, R, RF](override val priority: Int,
+private[ninjatasks] class NinjaWork[J, JF, D, R, RF](override val priority: Int,
 																 override val data: Option[D],
 																 override val updater: ResultUpdater[J, JF, R, RF],
 																 override val creator: JobCreator[J, D])

@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import scala.language.implicitConversions
 import java.util.UUID
 
-object ManagedJob
+private[ninjatasks] object ManagedJob
 {
 	def apply[R, D](job: ExecutableJob[R, D], uuid: UUID) = new ManagedJob(job, uuid)
 }
@@ -61,7 +61,7 @@ private[ninjatasks] class ManagedJob[+R, D](val job: ExecutableJob[R, D], val wo
 			case x if x != 0 => x.toInt
 		}
 
-	private[ninjatasks] def withFuture(cancelFuture: Future[_]): this.type =
+	def withFuture(cancelFuture: Future[_]): this.type =
 	{
 		cancel foreach (_ => throw new IllegalStateException("Already assigned a future"))
 		cancel = Some(cancelFuture)

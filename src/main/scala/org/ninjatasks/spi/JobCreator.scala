@@ -55,7 +55,7 @@ class SingletonJobCreator[T, D](job: ExecutableJob[T, D]) extends AbstractJobCre
 	}
 }
 
-object JobSetIterator
+private[ninjatasks] object JobSetIterator
 {
 	def apply[T, D](producer: JobCreator[T, D], serial: Long, workId: UUID, priority: Int) = new JobSetIterator(producer, serial, workId, priority)
 }
@@ -66,9 +66,12 @@ object JobSetIterator
  * @tparam T Type returned by the work's underlying jobs
  * @tparam D Type of the work's data object
  */
-class JobSetIterator[T, D](val producer: JobCreator[T, D], val serial: Long, val workId: UUID, val priority: Int)
-	extends Iterator[immutable.Seq[ExecutableJob[T, D]]]
-	with Ordered[JobSetIterator[_, _]]
+private[ninjatasks] class JobSetIterator[T, D]( val producer: JobCreator[T, D],
+																								val serial: Long,
+																								val workId: UUID,
+																								val priority: Int)
+																									extends Iterator[immutable.Seq[ExecutableJob[T, D]]]
+																									with Ordered[JobSetIterator[_, _]]
 {
 	override def hasNext = producer.remaining > 0
 
@@ -84,6 +87,6 @@ class JobSetIterator[T, D](val producer: JobCreator[T, D], val serial: Long, val
 		}
 }
 
-object JobCreator {
+private[ninjatasks] object JobCreator {
 	def apply[T, D](job: ExecutableJob[T, D]): JobCreator[T, D] = new SingletonJobCreator(job)
 }
