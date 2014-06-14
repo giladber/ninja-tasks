@@ -4,7 +4,7 @@ package org.ninjatasks.spi
  * Result updater for work objects.
  * Created by Gilad Ber on 6/5/2014.
  */
-trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT] extends WorkOps[JobT, ResT]
+private[ninjatasks] trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT] extends WorkOps[JobT, ResT]
 {
 	self =>
 
@@ -72,12 +72,12 @@ trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT] extends WorkOps[JobT, ResT]
 	}
 }
 
-object ResultUpdater
+private[ninjatasks] object ResultUpdater
 {
 	def apply[J, R](combine: (R, J) => R, initial: R) = new BaseResultUpdater(combine, initial)
 }
 
-object Updater {
+private[ninjatasks] object Updater {
 	def apply[J, JF, R, RF](jobs: Jobs[J, JF],
 													combine: (R, J) => RF,
 													initialMappedResult: RF,
@@ -92,7 +92,7 @@ object Updater {
 
 }
 
-class Updater[J, JF, R, RF](override val jobs: Jobs[J, JF],
+private[ninjatasks] class Updater[J, JF, R, RF](override val jobs: Jobs[J, JF],
 														 override val combine: (R, J) => RF,
 														 override val initialResult: R,
 														 override val baseUpdater: BaseResultUpdater[J, R],
@@ -102,7 +102,7 @@ class Updater[J, JF, R, RF](override val jobs: Jobs[J, JF],
 
 }
 
-class JobMappedUpdater[J, JF, R, RF](override val jobs: Jobs[J, JF],
+private[ninjatasks] class JobMappedUpdater[J, JF, R, RF](override val jobs: Jobs[J, JF],
 																			override val initialResult: R,
 																			override val baseUpdater: BaseResultUpdater[J, R],
 																			override var result: RF,
@@ -116,7 +116,7 @@ class JobMappedUpdater[J, JF, R, RF](override val jobs: Jobs[J, JF],
 	}
 }
 
-class BaseResultUpdater[JobT, ResT](override val combine: (ResT, JobT) => ResT,
+private[ninjatasks] class BaseResultUpdater[JobT, ResT](override val combine: (ResT, JobT) => ResT,
 																		override val initialResult: ResT)
 																		extends ResultUpdater[JobT, JobT, ResT, ResT]
 {
