@@ -1,7 +1,7 @@
 package org.ninjatasks.taskmanagement
 
 import scala.concurrent.Future
-import org.ninjatasks.spi.{Work, ManagedJob}
+import org.ninjatasks.spi.{JobSetIterator, Work, ManagedJob}
 import java.util.UUID
 
 /**
@@ -184,3 +184,28 @@ private[ninjatasks] case class CombineRequest[A, B, C, D](work: Work[A, B, C], r
  * @param workId ID of the work for which combination was successful
  */
 private[ninjatasks] case class CombineAck(workId: UUID) extends ManagementProtocolMessage
+
+/**
+ * A request to create at most amount jobs using the input job set iterator
+ * @param iterator Iterator to produce job objects with
+ * @param amount Maximum number of job objects to produce
+ * @tparam T Type of job result
+ * @tparam D Type of job data
+ */
+private[ninjatasks] case class JobCreationRequest[T, D](iterator: JobSetIterator[T, D], amount: Long) extends ManagementProtocolMessage
+
+import scala.collection.immutable
+
+/**
+ * The result of a job creation request.
+ * @param result A sequence of newly-created job objects for processing.
+ * @tparam T Type of job result
+ * @tparam D Type of job data
+ */
+private[ninjatasks] case class JobCreationResult[T, D](result: immutable.Seq[ManagedJob[T, D]]) extends ManagementProtocolMessage
+
+/**
+ * A message indicating that creation of job requests has been a failure, indicating the id of the faulty work.
+ * @param id Id of the work for which creation job objects failed.
+ */
+private[ninjatasks] case class JobCreationFailure(id: UUID) extends ManagementProtocolMessage

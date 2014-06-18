@@ -1,6 +1,7 @@
 package org.ninjatasks.taskmanagement
 
 import akka.actor._
+
 import akka.actor.SupervisorStrategy.{Restart, Escalate}
 import akka.contrib.pattern.DistributedPubSubExtension
 import akka.contrib.pattern.DistributedPubSubMediator.Publish
@@ -15,6 +16,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.{Failure, Success, Try}
 
 
 object WorkManager
@@ -90,11 +92,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 			}
 
 		case JobSetRequest(amount) =>
-			pendingWork.headOption foreach (head =>
-			{
-				val jobs = take(amount)
-				delegator ! AggregateJobMessage(jobs)
-			})
+			pendingWork.headOption foreach (head => delegator ! AggregateJobMessage(take(amount)))
 
 		case wcm: WorkCancelRequest =>
 			delegator ! wcm
@@ -106,12 +104,14 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 
 		case js: JobSuccess[_] =>
 			log.debug("Received job success for job {}", js.jobId)
-			val valueOption = workData.get(js.workId) map (v => (v._1, v._2 - 1))
-			val entryOption = valueOption map (v => (v._1.id, (v._1, v._2)))
+			val valueOption = workData.get(js.workId) map (v => (v._1, v._2 - 1)) //decrease rem. job count
+			val entryOption = valueOption map (v => (v._1.id, (v._1, v._2))) //rebuild work entry
 			entryOption foreach workData.+=
 			valueOption map (v => v._1) foreach (w => receiveResult(w, js))
-			valueOption filter (v => v._2 == 0) map (v => v._1) foreach (work => removeWork(work.id, WorkFinished(work.id,
-																																																						work.result)))
+
+		case CombineAck(wId) =>
+			workData.get(wId) filter(_._2 == 0) map(_._1) foreach (work => removeWork(work.id, WorkFinished(work.id, work.result)))
+
 		case other =>
 			throw new IllegalArgumentException(s"Received unexpected message: $other")
 	}
@@ -138,7 +138,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 
 		val f = combineRouter.ask(CombineRequest(work, js))(combineDuration)
 		f foreach {
-			case ack: CombineAck => //do nothing, actually...
+			case ack: CombineAck => self ! ack
 			case e: Exception => self ! WorkCancelRequest(work.id)
 		}
 	}
@@ -171,7 +171,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 	/**
 	 * Creates and returns at most n new, unprocessed job objects to be processed.
 	 * @param maxTasks maximum number of objects to process
-	 * @return Set consisting of at most n unprocessed job objects
+	 * @return Seq consisting of at most n unprocessed job objects
 	 */
 	private[this] def take(maxTasks: Long) = takeRec(maxTasks, immutable.Seq.empty[ManagedJob[_, _]])
 
@@ -185,12 +185,22 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		else
 		{
 			val head = pendingWork.head
-			val nextJobs: immutable.Seq[ManagedJob[_, _]] = jobs ++ head.next(n)
+			val nextJobs = Try(head.next(n))
 			if (!head.hasNext)
 			{
 				pendingWork.dequeue()
 			}
-			takeRec(n - nextJobs.size, nextJobs)
+
+			nextJobs match {
+				case Success(more) =>
+					val currentJobs = jobs ++ more
+					takeRec(n - currentJobs.size, currentJobs)
+
+				case Failure(ex) =>
+					self ! WorkCancelRequest(head.workId)
+					jobs.filter(_.workId != head.workId)
+			}
 		}
 	}
+
 }
