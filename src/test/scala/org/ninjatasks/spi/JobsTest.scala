@@ -11,17 +11,17 @@ class JobsTest extends UnitSpec
 {
 	"A jobs object" should "map identity successfully" in {
 		val jobs = Jobs[Int]
-		jobs.map(x => x) transform 1 should be (1)
+		jobs map(x => x) transform 1 should be (1)
 	}
 
 	it should "map multiplication successfully" in {
 		val jobs = Jobs[Int]
-		jobs.map(5 * _) transform 1 should be (5)
+		jobs map(5 * _) transform 1 should be (5)
 	}
 
 	it should "map addition successfully" in {
 		val jobs = Jobs[Int]
-		jobs.map(_ + 1) transform 1 should be (2)
+		jobs map(_ + 1) transform 1 should be (2)
 	}
 
 	it should "map to option successfully" in {
