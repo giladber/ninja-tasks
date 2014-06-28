@@ -106,7 +106,7 @@ class WorkExecutor extends Actor with ActorLogging
 
 	private[this] def cancelWork(id: UUID, reason: String): Unit =
 	{
-		promises.get(id) foreach(p => p.success(Left(WorkCancelled(id))))
+		promises.get(id) foreach(p => p.success(Left(WorkCancelled(id, reason))))
 		clearWorkData(id)
 		workManager ! WorkCancelRequest(id, reason)
 	}

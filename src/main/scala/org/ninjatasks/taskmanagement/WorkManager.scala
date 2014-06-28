@@ -96,7 +96,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 
 		case wcm: WorkCancelRequest =>
 			delegator ! wcm
-			removeWork(wcm.workId, WorkCancelled(wcm.workId))
+			removeWork(wcm.workId, WorkCancelled(wcm.workId, wcm.reason))
 
 		case jf: JobFailure =>
 			delegator ! WorkCancelRequest(jf.workId, s"Job ${jf.jobId} failed: ${jf.reason}")

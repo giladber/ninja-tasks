@@ -165,7 +165,7 @@ case class WorkFailed(override val workId: UUID, reason: Throwable) extends Work
 /**
  * A notification that the execution of a work request has been cancelled, as per request by a client.
  */
-case class WorkCancelled(override val workId: UUID) extends WorkResult(workId)
+case class WorkCancelled(override val workId: UUID, reason: String) extends WorkResult(workId)
 
 /**
  * A request to perform a combine operation on a work object and its newly received job result.
