@@ -99,7 +99,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 			removeWork(wcm.workId, WorkCancelled(wcm.workId))
 
 		case jf: JobFailure =>
-			delegator ! WorkCancelRequest(jf.workId)
+			delegator ! WorkCancelRequest(jf.workId, s"Job ${jf.jobId} failed: ${jf.reason}")
 			removeWork(jf.workId, WorkFailed(jf.workId, jf.reason))
 
 		case js: JobSuccess[_] =>
@@ -139,7 +139,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 		val f = combineRouter.ask(CombineRequest(work, js))(combineDuration)
 		f foreach {
 			case ack: CombineAck => self ! ack
-			case e: Exception => self ! WorkCancelRequest(work.id)
+			case e: Exception => self ! WorkCancelRequest(work.id, s"Failed combining job ${js.jobId}: $e")
 		}
 	}
 
@@ -197,7 +197,7 @@ private[ninjatasks] class WorkManager extends Actor with ActorLogging
 					takeRec(n - currentJobs.size, currentJobs)
 
 				case Failure(ex) =>
-					self ! WorkCancelRequest(head.workId)
+					self ! WorkCancelRequest(head.workId, s"Failed creating jobs: $ex}")
 					jobs.filter(_.workId != head.workId)
 			}
 		}

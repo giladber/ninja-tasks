@@ -122,7 +122,7 @@ private[ninjatasks] case class WorkDataRemoval(workId: UUID) extends ManagementP
  * and to the worker managers, which then in turn cancel the on-going related job executions.
  * @param workId ID of the work that is to be cancelled.
  */
-private[ninjatasks] case class WorkCancelRequest(workId: UUID) extends ManagementProtocolMessage
+private[ninjatasks] case class WorkCancelRequest(workId: UUID, reason: String) extends ManagementProtocolMessage
 
 /**
  * A notification that some component has started, and is requesting acknowledgement from

@@ -61,7 +61,7 @@ object JobManagementSubsystem
 		Await.result(result, 50 millis)
 	}
 
-	def cancel(workId: UUID): Unit = executor ! WorkCancelRequest(workId)
+	def cancel(workId: UUID): Unit = executor ! WorkCancelRequest(workId, "Cancelled by user")
 }
 
 /**
@@ -95,20 +95,20 @@ class WorkExecutor extends Actor with ActorLogging
 			val future = send(workWithTimeout._1)(workWithTimeout._2)
 			sender() ! future
 
-		case WorkCancelRequest(id) =>
+		case WorkCancelRequest(id, reason) =>
 			log.info("Received cancel request for work {}", id)
-			cancelWork(id)
+			cancelWork(id, reason)
 
 		case res: WorkResult =>
 			log.debug("received work result")
 			acceptResult(res)
 	}
 
-	private[this] def cancelWork(id: UUID): Unit =
+	private[this] def cancelWork(id: UUID, reason: String): Unit =
 	{
 		promises.get(id) foreach(p => p.success(Left(WorkCancelled(id))))
 		clearWorkData(id)
-		workManager ! WorkCancelRequest(id)
+		workManager ! WorkCancelRequest(id, reason)
 	}
 
 	type WorkPromise[A] = Promise[Either[WorkResult, A]]
@@ -151,7 +151,7 @@ class WorkExecutor extends Actor with ActorLogging
 			val cancellable = scheduler.scheduleOnce(delay = timeout)
 			{
 				log.debug("Sending cancel request for work {}", id)
-				self ! WorkCancelRequest(workId = id)
+				self ! WorkCancelRequest(workId = id, reason = s"Timeout of $timeout for work has passsed")
 			}
 			cancels.put(id, cancellable)
 			log.debug("Added cancellable to work id {}", id)

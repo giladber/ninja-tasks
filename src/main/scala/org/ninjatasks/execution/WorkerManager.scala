@@ -111,8 +111,8 @@ class WorkerManager extends TopicAwareActor(receiveTopic = WORK_TOPIC_NAME, targ
 			publish(res)
 			publish(JobRequest)
 
-		case WorkCancelRequest(id) =>
-			log.info("Received cancel message for work id {}", id)
+		case WorkCancelRequest(id, reason) =>
+			log.info("Received cancel message for work id {} for reason {}", id, reason)
 			contexts.values filter (ctx => ctx.workId == id) foreach (_.signalStop())
 
 		case WorkDataMessage(wId, data) =>

@@ -12,10 +12,10 @@ private[ninjatasks] trait Jobs[T, M] extends Serializable
 }
 
 private[ninjatasks] object Jobs {
-	def apply[T]: Jobs[T, T] = new UnitJobs[T, T]
+	def apply[T]: Jobs[T, T] = new UnitJobs[T]
 }
 
-private[ninjatasks] class UnitJobs[T, D] extends Jobs[T, T]
+private[ninjatasks] class UnitJobs[T] extends Jobs[T, T]
 {
 	override def accept(t: T): Boolean = true
 

@@ -8,7 +8,7 @@ private[ninjatasks] trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT] extends 
 {
 	self =>
 
-	val jobs: Jobs[BaseJobT, JobT]
+	private[spi] val jobs: Jobs[BaseJobT, JobT]
 
 	/**
 	 * A reduce function to compute the final result of this computation.
@@ -28,26 +28,26 @@ private[ninjatasks] trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT] extends 
 	 * our combine function would be:
 	 * (avg: Long, x: Long) => n = n + 1; (x + (n-1)*avg)/n
 	 */
-	val combine: (BaseResT, BaseJobT) => ResT
+	private[spi] val combine: (BaseResT, JobT) => ResT
 
 	/**
 	 * The initial result of the computation.
 	 */
-	val initialResult: BaseResT
+	private[spi] val initialResult: BaseResT
 
-	var result: ResT
+	private[ninjatasks] var result: ResT
 
-	val baseUpdater: BaseResultUpdater[BaseJobT, BaseResT]
+	private[spi] val baseUpdater: BaseResultUpdater[BaseJobT, BaseResT]
 
 	def update(added: BaseJobT): Unit = {
 		if (jobs.accept(added)) {
-			result = combine(baseUpdater.result, added)
+			result = combine(baseUpdater.result, jobs.transform(added))
 			baseUpdater.update(added)
 		}
 	}
 
 	def map[U](f: ResT => U): ResultUpdater[BaseJobT, JobT, BaseResT, U] = {
-		val mapCombine: (BaseResT, BaseJobT) => U = (r, j) => f(self.combine(r, j))
+		val mapCombine: (BaseResT, JobT) => U = (r, j) => f(self.combine(r, j))
 		Updater(jobs, mapCombine, f(result), this)
 	}
 
@@ -64,8 +64,8 @@ private[ninjatasks] trait ResultUpdater[BaseJobT, JobT, BaseResT, ResT] extends 
 	}
 
 	def foreach[U](f: JobT => U): ResultUpdater[BaseJobT, JobT, BaseResT, ResT] = {
-		val foreachCombiner: (BaseResT, BaseJobT) => ResT = (r,j) => {
-			f(jobs.transform(j))
+		val foreachCombiner: (BaseResT, JobT) => ResT = (r,j) => {
+			f(j)
 			self.combine(r, j)
 		}
 		Updater(jobs, foreachCombiner, result, this)
@@ -79,7 +79,7 @@ private[ninjatasks] object ResultUpdater
 
 private[ninjatasks] object Updater {
 	def apply[J, JF, R, RF](jobs: Jobs[J, JF],
-													combine: (R, J) => RF,
+													combine: (R, JF) => RF,
 													initialMappedResult: RF,
 													other: ResultUpdater[J, _, R, _]): Updater[J, JF, R, RF] =
 		new Updater(jobs, combine, other.initialResult, other.baseUpdater, initialMappedResult)
@@ -89,11 +89,10 @@ private[ninjatasks] object Updater {
 													initialMappedResult: RF,
 													other: ResultUpdater[J, _, R, _]): JobMappedUpdater[J, JF, R, RF] =
 		new JobMappedUpdater(jobs, other.initialResult, other.baseUpdater, initialMappedResult, jobCombine)
-
 }
 
 private[ninjatasks] class Updater[J, JF, R, RF](override val jobs: Jobs[J, JF],
-														 override val combine: (R, J) => RF,
+														 override val combine: (R, JF) => RF,
 														 override val initialResult: R,
 														 override val baseUpdater: BaseResultUpdater[J, R],
 														 override var result: RF)
@@ -102,18 +101,21 @@ private[ninjatasks] class Updater[J, JF, R, RF](override val jobs: Jobs[J, JF],
 
 }
 
+
+
 private[ninjatasks] class JobMappedUpdater[J, JF, R, RF](override val jobs: Jobs[J, JF],
 																			override val initialResult: R,
 																			override val baseUpdater: BaseResultUpdater[J, R],
 																			override var result: RF,
-																			val jobCombine: (RF, JF) => RF)
+																			jobCombine: (RF, JF) => RF)
 																			extends ResultUpdater[J, JF, R, RF]
 {
 
-	override val combine: (R, J) => RF = (r, j) => {
-		result = jobCombine(result, jobs.transform(j))
+	override val combine: (R, JF) => RF = (r, j) => {
+		result = jobCombine(result, j)
 		result
 	}
+
 }
 
 private[ninjatasks] class BaseResultUpdater[JobT, ResT](override val combine: (ResT, JobT) => ResT,
